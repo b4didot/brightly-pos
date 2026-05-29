@@ -12,7 +12,7 @@ export function NavButton({ active, icon, label, onClick }: NavButtonProps) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-11 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition ${
+      className={`flex min-h-11 items-center justify-center gap-2 rounded-full px-3 text-sm font-semibold transition sm:px-4 ${
         active ? "bg-white text-stone-950 shadow-sm" : "text-stone-500 hover:text-stone-950"
       }`}
     >

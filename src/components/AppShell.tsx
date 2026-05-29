@@ -20,15 +20,15 @@ export function AppShell() {
 
   return (
     <main className="min-h-screen bg-[#f7f4ef] text-stone-950">
-      <header className="sticky top-0 z-20 border-b border-stone-200 bg-[#fffaf3]/95 px-4 py-3 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <div>
+      <header className="sticky top-0 z-20 border-b border-stone-200 bg-[#fffaf3]/95 px-3 py-3 backdrop-blur sm:px-4">
+        <div className="mx-auto flex max-w-7xl flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="min-w-0 text-center sm:text-left">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
               Brightly POS
             </p>
-            <h1 className="text-xl font-bold text-stone-950">Coffee Bar</h1>
+            <h1 className="truncate text-xl font-bold text-stone-950">Coffee Bar</h1>
           </div>
-          <nav className="grid grid-cols-3 gap-2 rounded-full bg-stone-100 p-1">
+          <nav className="grid grid-cols-3 gap-1 rounded-full bg-stone-100 p-1 sm:w-auto sm:gap-2">
             <NavButton
               active={activeView === "order"}
               label="Order"
