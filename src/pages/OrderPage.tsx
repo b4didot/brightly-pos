@@ -179,7 +179,6 @@ export function OrderPage() {
         activePaymentMethod={activePaymentMethod}
         cart={cart}
         isCartExpanded={isCartExpanded}
-        pendingTransactionId={pendingTransactionId}
         totals={totals}
         vatBreakdown={vatBreakdown}
         onOpenPaymentModal={openPaymentModal}

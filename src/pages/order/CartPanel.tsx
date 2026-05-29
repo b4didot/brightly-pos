@@ -41,7 +41,6 @@ export function CartPanel({
   activePaymentMethod,
   cart,
   isCartExpanded,
-  pendingTransactionId,
   totals,
   vatBreakdown,
   onOpenPaymentModal,
@@ -51,7 +50,6 @@ export function CartPanel({
   activePaymentMethod: PaymentMethod;
   cart: CartLine[];
   isCartExpanded: boolean;
-  pendingTransactionId: string;
   totals: CartTotals;
   vatBreakdown: VatBreakdown;
   onOpenPaymentModal: (method: PaymentMethod) => void;
@@ -75,13 +73,8 @@ export function CartPanel({
       items={cart}
       onToggle={onToggleCart}
       total={totals.total}
-      title={<p className="truncate text-xs font-bold text-stone-700">Txn ID: {pendingTransactionId}</p>}
     >
-      <div className="border-b border-stone-200 px-3 py-2 md:hidden">
-        <p className="truncate text-xs font-bold text-stone-700">Txn ID: {pendingTransactionId}</p>
-      </div>
-
-      <div className="max-h-[48vh] overflow-auto px-2 py-2 lg:max-h-[54vh]">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2 md:max-h-[48vh] md:flex-none lg:max-h-[54vh]">
         {cartRows.length === 0 ? (
           <div className="grid min-h-28 place-items-center rounded-lg border border-dashed border-stone-300 text-sm text-stone-500">
             No items selected
