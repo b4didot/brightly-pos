@@ -37,7 +37,7 @@ export function CartSheet({ children, isExpanded, items, onToggle, title, total 
 
         {title ? <div className="hidden border-b border-stone-200 px-3 py-2 md:block">{title}</div> : null}
 
-        <div className={`${isExpanded ? "block" : "hidden"} max-h-[72vh] overflow-y-auto md:block md:max-h-none`}>
+        <div className={`${isExpanded ? "flex h-[72vh]" : "hidden"} flex-col overflow-hidden md:block md:h-auto`}>
           {children}
         </div>
       </div>
