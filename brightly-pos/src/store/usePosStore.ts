@@ -50,12 +50,13 @@ type PosState = {
   deleteCategory: (categoryId: string) => Promise<void>;
   saveItem: (item: Pick<Item, "name" | "price" | "categoryId"> & { id?: string }) => Promise<void>;
   deleteItem: (itemId: string) => Promise<void>;
+  toggleItemOutOfStock: (itemId: string) => Promise<void>;
   saveAdjustment: (
     adjustment: Pick<Adjustment, "label" | "type" | "value" | "enabled"> & { id?: string },
   ) => Promise<void>;
   deleteAdjustment: (adjustmentId: string) => Promise<void>;
   setPaymentMethodEnabled: (method: PaymentMethod, enabled: boolean) => Promise<void>;
-  updateVatSettings: (settings: Pick<Settings, "vatEnabled" | "vatPercentage" | "vatInclusive">) => Promise<void>;
+  updateVatSettings: (settings: Pick<Settings, "vatEnabled" | "vatPercentage">) => Promise<void>;
   setReportRange: (startDate: string, endDate: string) => void;
 };
 
@@ -124,7 +125,7 @@ async function loadSnapshot() {
     categories,
     items,
     adjustments,
-    settings: { ...defaultSettings, ...settings },
+    settings: { ...defaultSettings, ...settings, vatInclusive: true },
     transactions,
     transactionItems,
   };
@@ -207,6 +208,12 @@ export const usePosStore = create<PosState>((set, get) => ({
   },
   setSelectedCategoryId: (selectedCategoryId) => set({ selectedCategoryId }),
   addToCart: (itemId) => {
+    const item = get().items.find((entry) => entry.id === itemId);
+
+    if (!item || item.isOutOfStock) {
+      return;
+    }
+
     const existingLine = get().cart.find((line) => line.itemId === itemId);
 
     if (existingLine) {
@@ -221,6 +228,12 @@ export const usePosStore = create<PosState>((set, get) => ({
     set({ cart: [...get().cart, { itemId, quantity: 1 }] });
   },
   incrementCartLine: (itemId) => {
+    const item = get().items.find((entry) => entry.id === itemId);
+
+    if (!item || item.isOutOfStock) {
+      return;
+    }
+
     set({
       cart: get().cart.map((line) =>
         line.itemId === itemId ? { ...line, quantity: line.quantity + 1 } : line,
@@ -319,11 +332,13 @@ export const usePosStore = create<PosState>((set, get) => ({
     set({ ...(await loadSnapshot()), selectedCategoryId: "all" });
   },
   saveItem: async ({ id, name, price, categoryId }) => {
+    const existingItem = id ? await db.items.get(id) : null;
     const item: Item = {
       id: id ?? createId("item"),
       name: name.trim(),
       price,
       categoryId,
+      isOutOfStock: existingItem?.isOutOfStock ?? false,
       createdAt: new Date().toISOString(),
     };
 
@@ -336,6 +351,16 @@ export const usePosStore = create<PosState>((set, get) => ({
       ...(await loadSnapshot()),
       cart: get().cart.filter((line) => line.itemId !== itemId),
     });
+  },
+  toggleItemOutOfStock: async (itemId) => {
+    const item = await db.items.get(itemId);
+
+    if (!item) {
+      return;
+    }
+
+    await db.items.update(itemId, { isOutOfStock: !item.isOutOfStock });
+    set(await loadSnapshot());
   },
   saveAdjustment: async ({ id, label, type, value, enabled }) => {
     const adjustment: Adjustment = {
@@ -375,7 +400,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       ...settings,
       vatEnabled: vatSettings.vatEnabled,
       vatPercentage: Math.max(0, vatSettings.vatPercentage),
-      vatInclusive: vatSettings.vatInclusive,
+      vatInclusive: true,
     };
 
     await db.settings.put(nextSettings);

@@ -16,6 +16,7 @@ export type Item = {
   name: string;
   price: number;
   categoryId: string | null;
+  isOutOfStock: boolean;
   createdAt: string;
 };
 
