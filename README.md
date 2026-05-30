@@ -1,2 +1,0 @@
-# brightly-pos
-POS

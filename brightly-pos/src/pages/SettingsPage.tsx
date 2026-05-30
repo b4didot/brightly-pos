@@ -1,16 +1,22 @@
-import { CreditCard, FolderOpen, Percent, ShoppingCart, SlidersHorizontal } from "lucide-react";
+import { BadgePercent, CreditCard, FolderOpen, Link2, ListPlus, Percent, ShoppingCart, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
+import { AddOnsSection } from "./settings/AddOnsSection";
 import { AdjustmentsSection } from "./settings/AdjustmentsSection";
 import { CategoriesSection } from "./settings/CategoriesSection";
 import { CollapsibleSection } from "./settings/CollapsibleSection";
+import { DiscountsSection } from "./settings/DiscountsSection";
 import { ItemsSection } from "./settings/ItemsSection";
+import { ModifiersSection } from "./settings/ModifiersSection";
 import { PaymentOptionsSection } from "./settings/PaymentOptionsSection";
 import { VatSection } from "./settings/VatSection";
 
 type ExpandedSections = {
   categories: boolean;
   items: boolean;
+  addOns: boolean;
+  modifiers: boolean;
   adjustments: boolean;
+  discounts: boolean;
   vat: boolean;
   payments: boolean;
 };
@@ -19,7 +25,10 @@ export function SettingsPage() {
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
     categories: true,
     items: true,
+    addOns: false,
+    modifiers: false,
     adjustments: false,
+    discounts: false,
     vat: false,
     payments: false,
   });
@@ -48,6 +57,24 @@ export function SettingsPage() {
         >
           <ItemsSection />
         </CollapsibleSection>
+
+        <CollapsibleSection
+          icon={<ListPlus size={21} />}
+          isOpen={expandedSections.modifiers}
+          title="Modifiers"
+          onToggle={() => toggleSection("modifiers")}
+        >
+          <ModifiersSection />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          icon={<Link2 size={21} />}
+          isOpen={expandedSections.addOns}
+          title="Add-ons"
+          onToggle={() => toggleSection("addOns")}
+        >
+          <AddOnsSection />
+        </CollapsibleSection>
       </div>
 
       <div className="space-y-4">
@@ -58,6 +85,15 @@ export function SettingsPage() {
           onToggle={() => toggleSection("adjustments")}
         >
           <AdjustmentsSection />
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          icon={<BadgePercent size={21} />}
+          isOpen={expandedSections.discounts}
+          title="Discounts"
+          onToggle={() => toggleSection("discounts")}
+        >
+          <DiscountsSection />
         </CollapsibleSection>
 
         <CollapsibleSection

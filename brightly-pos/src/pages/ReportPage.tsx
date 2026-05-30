@@ -24,6 +24,7 @@ export function ReportPage() {
   const reportTotals = filteredTransactions.reduce(
     (totals, transaction) => ({
       subtotal: totals.subtotal + transaction.subtotal,
+      discounts: totals.discounts + (transaction.discount?.computedAmount ?? 0),
       adjustments:
         totals.adjustments +
         transaction.adjustments.reduce((sum, item) => sum + item.computedAmount, 0),
@@ -31,14 +32,20 @@ export function ReportPage() {
       cash: totals.cash + (transaction.paymentMethod === "cash" ? transaction.totalAmount : 0),
       card: totals.card + (transaction.paymentMethod === "card" ? transaction.totalAmount : 0),
     }),
-    { subtotal: 0, adjustments: 0, total: 0, cash: 0, card: 0 },
+    { subtotal: 0, discounts: 0, adjustments: 0, total: 0, cash: 0, card: 0 },
   );
 
   function exportRows() {
     return filteredTransactions.map((transaction) => {
       const items = transactionItems
         .filter((item) => item.transactionId === transaction.id)
-        .map((item) => `${item.quantity}x ${item.itemNameSnapshot}`)
+        .map((item) => {
+          const addOns =
+            item.selectedAddOns.length > 0
+              ? ` + ${item.selectedAddOns.map((addOn) => addOn.name).join(" + ")}`
+              : "";
+          return `${item.quantity}x ${item.itemNameSnapshot}${addOns}`;
+        })
         .join(", ");
       const adjustments = transaction.adjustments
         .map((adjustment) => `${adjustment.label}: ${formatPeso(adjustment.computedAmount)}`)
@@ -48,8 +55,13 @@ export function ReportPage() {
         "Transaction Number": transaction.transactionNumber,
         "Date/Time": formatDateTime(transaction.createdAt),
         "Payment Method": transaction.paymentMethod,
+        "Order Type": transaction.orderType === "dine-in" ? "Dine In" : "Take Out",
         "Reference ID": transaction.referenceId,
         Subtotal: toPesoNumber(transaction.subtotal),
+        Discount: transaction.discount
+          ? `${transaction.discount.label}: -${formatPeso(transaction.discount.computedAmount)}`
+          : "",
+        "Discount Total": toPesoNumber(transaction.discount?.computedAmount ?? 0),
         Adjustments: adjustments,
         "Adjustments Total": toPesoNumber(
           transaction.adjustments.reduce((sum, adjustment) => sum + adjustment.computedAmount, 0),
@@ -74,8 +86,11 @@ export function ReportPage() {
         "Transaction Number": "",
         "Date/Time": "",
         "Payment Method": "",
+        "Order Type": "",
         "Reference ID": "",
         Subtotal: "",
+        Discount: "",
+        "Discount Total": "",
         Adjustments: "",
         "Adjustments Total": "",
         Total: "",
@@ -150,9 +165,10 @@ export function ReportPage() {
         </button>
       </div>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <Metric label="Transactions" value={String(filteredTransactions.length)} />
         <Metric label="Subtotal" value={formatPeso(reportTotals.subtotal)} />
+        <Metric label="Discounts" value={`-${formatPeso(reportTotals.discounts)}`} />
         <Metric label="Charges" value={formatPeso(reportTotals.adjustments)} />
         <Metric label="Cash" value={formatPeso(reportTotals.cash)} />
         <Metric label="Card" value={formatPeso(reportTotals.card)} />
@@ -172,6 +188,7 @@ export function ReportPage() {
                 <th className="px-4 py-3">Items</th>
                 <th className="px-4 py-3">Payment</th>
                 <th className="px-4 py-3">Subtotal</th>
+                <th className="px-4 py-3">Discount</th>
                 <th className="px-4 py-3">Charges</th>
                 <th className="px-4 py-3">Total</th>
               </tr>
@@ -179,7 +196,7 @@ export function ReportPage() {
             <tbody className="divide-y divide-stone-100">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-stone-500">
+                  <td colSpan={8} className="px-4 py-10 text-center text-stone-500">
                     No transactions in this date range
                   </td>
                 </tr>
@@ -213,7 +230,7 @@ function TransactionRow({
   items,
   transaction,
 }: {
-  items: Array<{ itemNameSnapshot: string; quantity: number }>;
+  items: Array<{ itemNameSnapshot: string; quantity: number; selectedAddOns: Array<{ name: string }> }>;
   transaction: Transaction;
 }) {
   const adjustmentTotal = transaction.adjustments.reduce(
@@ -223,13 +240,37 @@ function TransactionRow({
 
   return (
     <tr>
-      <td className="px-4 py-3 font-bold">{transaction.transactionNumber}</td>
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-bold">{transaction.transactionNumber}</span>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+              transaction.orderType === "dine-in"
+                ? "bg-amber-100 text-amber-800"
+                : "bg-stone-100 text-stone-700"
+            }`}
+          >
+            {transaction.orderType === "dine-in" ? "Dine In" : "Take Out"}
+          </span>
+        </div>
+      </td>
       <td className="px-4 py-3 text-stone-600">{formatDateTime(transaction.createdAt)}</td>
       <td className="px-4 py-3 text-stone-600">
-        {items.map((item) => `${item.quantity}x ${item.itemNameSnapshot}`).join(", ")}
+        {items
+          .map((item) => {
+            const addOns =
+              item.selectedAddOns.length > 0
+                ? ` + ${item.selectedAddOns.map((addOn) => addOn.name).join(" + ")}`
+                : "";
+            return `${item.quantity}x ${item.itemNameSnapshot}${addOns}`;
+          })
+          .join(", ")}
       </td>
       <td className="px-4 py-3 capitalize text-stone-600">{transaction.paymentMethod}</td>
       <td className="px-4 py-3">{formatPeso(transaction.subtotal)}</td>
+      <td className="px-4 py-3">
+        {transaction.discount ? `-${formatPeso(transaction.discount.computedAmount)}` : formatPeso(0)}
+      </td>
       <td className="px-4 py-3">{formatPeso(adjustmentTotal)}</td>
       <td className="px-4 py-3 font-bold">{formatPeso(transaction.totalAmount)}</td>
     </tr>

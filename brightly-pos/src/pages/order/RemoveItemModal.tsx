@@ -15,7 +15,7 @@ export function RemoveItemModal({
     <ModalFrame title="Remove Item" onClose={onClose}>
       <div className="grid gap-4">
         <p className="text-sm font-semibold text-stone-700">
-          Remove <span className="font-bold text-stone-950">{item.name}</span> from the cart?
+          Remove all <span className="font-bold text-stone-950">{item.name}</span> lines from the cart?
         </p>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-stone-300 px-4 font-bold text-stone-700 transition hover:bg-stone-50">
