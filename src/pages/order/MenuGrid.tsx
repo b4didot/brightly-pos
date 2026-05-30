@@ -1,4 +1,5 @@
 import { categoryFallback } from "../../constants/catalog";
+import type { CartSheetState } from "../../components/CartSheet";
 import { usePosStore } from "../../store/usePosStore";
 import type { Item } from "../../types";
 import { formatPeso } from "../../utils/money";
@@ -30,16 +31,18 @@ function CategoryTab({
 
 export function MenuGrid({
   animatingItemId,
+  cartSheetState,
   onAddToCart,
 }: {
   animatingItemId: string | null;
+  cartSheetState: CartSheetState;
   onAddToCart: (item: Item) => void;
 }) {
   const categories = usePosStore((state) => state.categories);
   const items = usePosStore((state) => state.items);
   const selectedCategoryId = usePosStore((state) => state.selectedCategoryId);
   const setSelectedCategoryId = usePosStore((state) => state.setSelectedCategoryId);
-  const availableItems = items.filter((item) => !item.isOutOfStock);
+  const availableItems = items.filter((item) => !item.isOutOfStock && !item.isAddOn);
   const hasUncategorized = availableItems.some((item) => !item.categoryId);
   const filteredItems = availableItems.filter((item) => {
     if (selectedCategoryId === "all") {
@@ -54,8 +57,8 @@ export function MenuGrid({
   });
 
   return (
-    <div className="min-w-0">
-      <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+    <div className={`menu-panel menu-panel-${cartSheetState} min-w-0`}>
+      <div className="category-tabs mb-3 flex gap-2 overflow-x-auto pb-1">
         <CategoryTab active={selectedCategoryId === "all"} label="All" onClick={() => setSelectedCategoryId("all")} />
         {categories.map((category) => (
           <CategoryTab
@@ -75,7 +78,7 @@ export function MenuGrid({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+      <div className="menu-tile-grid grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
         {filteredItems.map((item) => {
           const category = categories.find((entry) => entry.id === item.categoryId);
 

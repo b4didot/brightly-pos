@@ -14,9 +14,9 @@ export function Modal({ children, isOpen, onClose, title }: ModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-stone-950/45 p-3 sm:p-4">
-      <div className="max-h-[calc(100vh-1.5rem)] w-full max-w-md overflow-y-auto rounded-lg bg-white shadow-xl sm:max-h-[calc(100vh-2rem)]">
-        <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3">
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-hidden bg-stone-950/45 p-3 sm:p-4">
+      <div className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md min-w-0 flex-col overflow-hidden rounded-lg bg-white shadow-xl sm:max-h-[calc(100dvh-2rem)]">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-stone-200 px-4 py-3">
           <h2 className="text-base font-bold text-stone-950">{title}</h2>
           <button
             type="button"
@@ -27,7 +27,7 @@ export function Modal({ children, isOpen, onClose, title }: ModalProps) {
             <X size={18} />
           </button>
         </div>
-        <div className="px-4 py-4">{children}</div>
+        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4">{children}</div>
       </div>
     </div>
   );
