@@ -5,7 +5,7 @@ import { usePosStore } from "../store/usePosStore";
 import type { Transaction } from "../types";
 import { formatDateTime, isWithinDateRange } from "../utils/dates";
 import { downloadFile } from "../utils/download";
-import { formatPeso, toPesoNumber } from "../utils/money";
+import { formatPeso, formatSignedPeso, toPesoNumber } from "../utils/money";
 
 export function ReportPage() {
   const transactions = usePosStore((state) => state.transactions);
@@ -48,7 +48,7 @@ export function ReportPage() {
         })
         .join(", ");
       const adjustments = transaction.adjustments
-        .map((adjustment) => `${adjustment.label}: ${formatPeso(adjustment.computedAmount)}`)
+        .map((adjustment) => `${adjustment.label}: ${formatSignedPeso(adjustment.computedAmount)}`)
         .join(", ");
 
       return {
@@ -169,7 +169,7 @@ export function ReportPage() {
         <Metric label="Transactions" value={String(filteredTransactions.length)} />
         <Metric label="Subtotal" value={formatPeso(reportTotals.subtotal)} />
         <Metric label="Discounts" value={`-${formatPeso(reportTotals.discounts)}`} />
-        <Metric label="Charges" value={formatPeso(reportTotals.adjustments)} />
+        <Metric label="Adjustments" value={formatSignedPeso(reportTotals.adjustments)} />
         <Metric label="Cash" value={formatPeso(reportTotals.cash)} />
         <Metric label="Card" value={formatPeso(reportTotals.card)} />
       </div>
@@ -189,7 +189,7 @@ export function ReportPage() {
                 <th className="px-4 py-3">Payment</th>
                 <th className="px-4 py-3">Subtotal</th>
                 <th className="px-4 py-3">Discount</th>
-                <th className="px-4 py-3">Charges</th>
+                <th className="px-4 py-3">Adjustments</th>
                 <th className="px-4 py-3">Total</th>
               </tr>
             </thead>
@@ -271,7 +271,7 @@ function TransactionRow({
       <td className="px-4 py-3">
         {transaction.discount ? `-${formatPeso(transaction.discount.computedAmount)}` : formatPeso(0)}
       </td>
-      <td className="px-4 py-3">{formatPeso(adjustmentTotal)}</td>
+      <td className="px-4 py-3">{formatSignedPeso(adjustmentTotal)}</td>
       <td className="px-4 py-3 font-bold">{formatPeso(transaction.totalAmount)}</td>
     </tr>
   );

@@ -2,7 +2,7 @@ import { Banknote, Check, CreditCard } from "lucide-react";
 import type { CardStep, CashStep } from "../OrderPage";
 import type { CartTotals, OrderType, PaymentMethod } from "../../types";
 import type { VatBreakdown } from "../../utils/vat";
-import { formatPeso } from "../../utils/money";
+import { formatPeso, formatSignedPeso } from "../../utils/money";
 import { CompleteNotice, ErrorNotice, ModalAction, ModalFrame, SummaryLine, VatBreakdownLines } from "./OrderUi";
 
 export function PaymentModal({
@@ -68,7 +68,7 @@ export function PaymentModal({
               <SummaryLine
                 key={adjustment.adjustmentId}
                 label={adjustment.label}
-                value={formatPeso(adjustment.computedAmount)}
+                value={formatSignedPeso(adjustment.computedAmount)}
               />
             ))}
             <VatBreakdownLines

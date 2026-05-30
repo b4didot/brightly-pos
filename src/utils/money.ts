@@ -6,6 +6,11 @@ export function formatPeso(amount: number) {
   }).format(amount / 100);
 }
 
+export function formatSignedPeso(amount: number) {
+  const sign = amount < 0 ? "-" : amount > 0 ? "+" : "";
+  return `${sign}${formatPeso(Math.abs(amount))}`;
+}
+
 export function parsePesoInput(value: string) {
   const parsed = Number(value);
 
