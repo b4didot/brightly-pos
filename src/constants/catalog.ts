@@ -46,6 +46,8 @@ export const seedItems: Item[] = [
     name: "Americano",
     price: 12000,
     categoryId: "cat_espresso",
+    isOutOfStock: false,
+    isAddOn: false,
     createdAt: seededAt,
   },
   {
@@ -53,6 +55,8 @@ export const seedItems: Item[] = [
     name: "Cappuccino",
     price: 15000,
     categoryId: "cat_milk",
+    isOutOfStock: false,
+    isAddOn: false,
     createdAt: seededAt,
   },
   {
@@ -60,6 +64,8 @@ export const seedItems: Item[] = [
     name: "Cafe Latte",
     price: 16000,
     categoryId: "cat_milk",
+    isOutOfStock: false,
+    isAddOn: false,
     createdAt: seededAt,
   },
   {
@@ -67,6 +73,8 @@ export const seedItems: Item[] = [
     name: "Iced Mocha",
     price: 18000,
     categoryId: "cat_cold",
+    isOutOfStock: false,
+    isAddOn: false,
     createdAt: seededAt,
   },
   {
@@ -74,6 +82,8 @@ export const seedItems: Item[] = [
     name: "Cold Brew",
     price: 17000,
     categoryId: "cat_cold",
+    isOutOfStock: false,
+    isAddOn: false,
     createdAt: seededAt,
   },
   {
@@ -81,6 +91,8 @@ export const seedItems: Item[] = [
     name: "Butter Croissant",
     price: 9500,
     categoryId: "cat_pastry",
+    isOutOfStock: false,
+    isAddOn: false,
     createdAt: seededAt,
   },
   {
@@ -88,6 +100,8 @@ export const seedItems: Item[] = [
     name: "Chocolate Cookie",
     price: 8500,
     categoryId: "cat_pastry",
+    isOutOfStock: false,
+    isAddOn: false,
     createdAt: seededAt,
   },
 ];

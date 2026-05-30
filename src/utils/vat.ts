@@ -17,9 +17,9 @@ export const defaultVatSettings = {
 export function calculateInclusiveVat(totalAmount: number, settings: Settings): VatBreakdown {
   const vatEnabled = settings.vatEnabled;
   const vatPercentage = Math.max(0, settings.vatPercentage);
-  const vatInclusive = settings.vatInclusive;
+  const vatInclusive = true;
 
-  if (!vatEnabled || !vatInclusive || vatPercentage <= 0 || totalAmount <= 0) {
+  if (!vatEnabled || vatPercentage <= 0 || totalAmount <= 0) {
     return {
       vatEnabled,
       vatPercentage,

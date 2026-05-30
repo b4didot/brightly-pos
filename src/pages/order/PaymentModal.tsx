@@ -1,0 +1,176 @@
+import { Banknote, Check, CreditCard } from "lucide-react";
+import type { CardStep, CashStep } from "../OrderPage";
+import type { CartTotals, OrderType, PaymentMethod } from "../../types";
+import type { VatBreakdown } from "../../utils/vat";
+import { formatPeso } from "../../utils/money";
+import { CompleteNotice, ErrorNotice, ModalAction, ModalFrame, SummaryLine, VatBreakdownLines } from "./OrderUi";
+
+export function PaymentModal({
+  cardStep,
+  cashChange,
+  cashReceived,
+  cashStep,
+  error,
+  method,
+  modalTotal,
+  modalTotals,
+  notice,
+  orderType,
+  referenceId,
+  vatBreakdown,
+  onCashReceivedChange,
+  onClose,
+  onCompleteCardPayment,
+  onCompleteCashPayment,
+  onConfirmPaymentReview,
+  onComputeCashChange,
+  onMoveToCardConfirmation,
+  onReferenceIdChange,
+}: {
+  cardStep: CardStep;
+  cashChange: number;
+  cashReceived: string;
+  cashStep: CashStep;
+  error: string;
+  method: PaymentMethod;
+  modalTotal: number;
+  modalTotals: CartTotals;
+  notice: string;
+  orderType: OrderType;
+  referenceId: string;
+  vatBreakdown: VatBreakdown;
+  onCashReceivedChange: (value: string) => void;
+  onClose: () => void;
+  onCompleteCardPayment: () => void;
+  onCompleteCashPayment: () => void;
+  onConfirmPaymentReview: () => void;
+  onComputeCashChange: () => void;
+  onMoveToCardConfirmation: () => void;
+  onReferenceIdChange: (value: string) => void;
+}) {
+  const isReviewStep = method === "cash" ? cashStep === "review" : cardStep === "review";
+
+  return (
+    <ModalFrame title={method === "cash" ? "Cash Tender" : "Card Payment"} onClose={onClose}>
+      <div className="flex justify-center">
+        <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-bold text-stone-600">
+          {orderType === "dine-in" ? "Dine In" : "Take Out"}
+        </span>
+      </div>
+      {isReviewStep ? (
+        <div className="mt-4 grid gap-4">
+          <div className="rounded-md bg-stone-50 px-3 py-3">
+            <SummaryLine label="Subtotal" value={formatPeso(modalTotals.subtotal)} />
+            {modalTotals.appliedDiscount && (
+              <SummaryLine label={modalTotals.appliedDiscount.label} value={`-${formatPeso(modalTotals.discountTotal)}`} />
+            )}
+            {modalTotals.appliedAdjustments.map((adjustment) => (
+              <SummaryLine
+                key={adjustment.adjustmentId}
+                label={adjustment.label}
+                value={formatPeso(adjustment.computedAmount)}
+              />
+            ))}
+            <VatBreakdownLines
+              vatAmount={vatBreakdown.vatAmount}
+              vatEnabled={vatBreakdown.vatEnabled}
+              vatableSales={vatBreakdown.vatableSales}
+            />
+            <div className="mt-2 border-t border-stone-200 pt-2">
+              <SummaryLine label="Total" value={formatPeso(modalTotal)} />
+            </div>
+          </div>
+          {error && <ErrorNotice message={error} />}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-stone-300 px-4 font-bold text-stone-700 transition hover:bg-stone-50">
+              Cancel
+            </button>
+            <ModalAction icon={<Check size={18} />} label="Confirm" onClick={onConfirmPaymentReview} />
+          </div>
+        </div>
+      ) : null}
+      {!isReviewStep && method === "cash" ? (
+        <div className="grid gap-4">
+          {cashStep === "complete" ? (
+            <CompleteNotice notice={notice} total={modalTotal} />
+          ) : (
+            <>
+              <SummaryLine label="Total" value={formatPeso(modalTotal)} />
+              <VatBreakdownLines
+                vatAmount={vatBreakdown.vatAmount}
+                vatEnabled={vatBreakdown.vatEnabled}
+                vatableSales={vatBreakdown.vatableSales}
+              />
+              <label className="block text-sm font-semibold text-stone-700">
+                Tendered
+                <input
+                  autoFocus
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={cashReceived}
+                  onChange={(event) => onCashReceivedChange(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-3 text-lg font-semibold outline-none focus:border-amber-700"
+                  placeholder="0.00"
+                />
+              </label>
+              {cashStep === "change" && (
+                <div className="rounded-md bg-emerald-50 px-3 py-3">
+                  <SummaryLine label="Change" value={formatPeso(cashChange)} />
+                </div>
+              )}
+              {error && <ErrorNotice message={error} />}
+              {cashStep === "tender" ? (
+                <ModalAction icon={<Banknote size={18} />} label="Compute Change" onClick={onComputeCashChange} />
+              ) : (
+                <ModalAction icon={<Check size={18} />} label="Complete" onClick={onCompleteCashPayment} />
+              )}
+            </>
+          )}
+        </div>
+      ) : !isReviewStep ? (
+        <div className="grid gap-4">
+          {cardStep === "complete" ? (
+            <CompleteNotice notice={notice} total={modalTotal} />
+          ) : cardStep === "confirm" ? (
+            <>
+              <div className="rounded-md bg-stone-50 px-3 py-3">
+                <SummaryLine label="Reference ID" value={referenceId.trim()} />
+                <VatBreakdownLines
+                  vatAmount={vatBreakdown.vatAmount}
+                  vatEnabled={vatBreakdown.vatEnabled}
+                  vatableSales={vatBreakdown.vatableSales}
+                />
+                <SummaryLine label="Total" value={formatPeso(modalTotal)} />
+              </div>
+              {error && <ErrorNotice message={error} />}
+              <ModalAction icon={<Check size={18} />} label="Confirm Payment" onClick={onCompleteCardPayment} />
+            </>
+          ) : (
+            <>
+              <SummaryLine label="Total" value={formatPeso(modalTotal)} />
+              <VatBreakdownLines
+                vatAmount={vatBreakdown.vatAmount}
+                vatEnabled={vatBreakdown.vatEnabled}
+                vatableSales={vatBreakdown.vatableSales}
+              />
+              <label className="block text-sm font-semibold text-stone-700">
+                Reference ID
+                <input
+                  autoFocus
+                  type="text"
+                  value={referenceId}
+                  onChange={(event) => onReferenceIdChange(event.target.value)}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-3 outline-none focus:border-amber-700"
+                  placeholder="ABC123"
+                />
+              </label>
+              {error && <ErrorNotice message={error} />}
+              <ModalAction icon={<CreditCard size={18} />} label="Continue" onClick={onMoveToCardConfirmation} />
+            </>
+          )}
+        </div>
+      ) : null}
+    </ModalFrame>
+  );
+}
