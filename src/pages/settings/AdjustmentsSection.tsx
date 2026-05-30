@@ -3,7 +3,7 @@ import { type FormEvent, useState } from "react";
 import { Modal } from "../../components/Modal";
 import { usePosStore } from "../../store/usePosStore";
 import type { Adjustment } from "../../types";
-import { formatPeso, parsePesoInput } from "../../utils/money";
+import { formatSignedPeso, parsePesoInput } from "../../utils/money";
 import { SettingRow } from "./SettingRow";
 
 type AdjustmentModalState = { type: "add" } | { type: "edit" | "delete"; selectedId: string };
@@ -14,6 +14,7 @@ export function AdjustmentsSection() {
   const deleteAdjustment = usePosStore((state) => state.deleteAdjustment);
   const [editingAdjustment, setEditingAdjustment] = useState<Adjustment | null>(null);
   const [label, setLabel] = useState("");
+  const [effect, setEffect] = useState<"discount" | "charge">("discount");
   const [type, setType] = useState<"percentage" | "flat">("percentage");
   const [value, setValue] = useState("");
   const [enabled, setEnabled] = useState(true);
@@ -37,8 +38,9 @@ export function AdjustmentsSection() {
   function startEdit(adjustment: Adjustment) {
     setEditingAdjustment(adjustment);
     setLabel(adjustment.label);
+    setEffect(adjustment.value < 0 ? "discount" : "charge");
     setType(adjustment.type);
-    setValue(adjustment.type === "flat" ? String(adjustment.value / 100) : String(adjustment.value));
+    setValue(adjustment.type === "flat" ? String(Math.abs(adjustment.value) / 100) : String(Math.abs(adjustment.value)));
     setEnabled(adjustment.enabled);
     setModalState({ type: "edit", selectedId: adjustment.id });
   }
@@ -51,6 +53,7 @@ export function AdjustmentsSection() {
   function resetForm() {
     setEditingAdjustment(null);
     setLabel("");
+    setEffect("discount");
     setType("percentage");
     setValue("");
     setEnabled(true);
@@ -63,11 +66,13 @@ export function AdjustmentsSection() {
       return;
     }
 
+    const parsedValue = type === "flat" ? parsePesoInput(value) : Math.max(0, Number(value) || 0);
+
     await saveAdjustment({
       id: editingAdjustment?.id,
       label,
       type,
-      value: type === "flat" ? parsePesoInput(value) : Math.max(0, Number(value) || 0),
+      value: effect === "discount" ? -parsedValue : parsedValue,
       enabled,
     });
     closeModal();
@@ -86,12 +91,12 @@ export function AdjustmentsSection() {
     <>
       <button type="button" onClick={openAddModal} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 font-bold text-white transition hover:bg-stone-800 sm:w-auto">
         <Plus size={17} />
-        Add Adjustment
+        Add Discount
       </button>
       <div className="mt-4 grid gap-2">
         {adjustments.length === 0 ? (
           <p className="rounded-lg border border-dashed border-stone-300 px-4 py-8 text-center text-sm text-stone-500">
-            No automatic charges configured
+            No discounts or charges configured
           </p>
         ) : (
           adjustments.map((adjustment) => (
@@ -99,7 +104,9 @@ export function AdjustmentsSection() {
               key={adjustment.id}
               title={adjustment.label}
               detail={`${adjustment.enabled ? "Auto-applied" : "Disabled"} - ${
-                adjustment.type === "flat" ? formatPeso(adjustment.value) : `${adjustment.value}%`
+                adjustment.value < 0 ? "Discount" : "Charge"
+              } - ${
+                adjustment.type === "flat" ? formatSignedPeso(adjustment.value) : `${adjustment.value < 0 ? "-" : "+"}${Math.abs(adjustment.value)}%`
               }`}
               onEdit={() => startEdit(adjustment)}
               onDelete={() => openDeleteModal(adjustment.id)}
@@ -108,9 +115,13 @@ export function AdjustmentsSection() {
         )}
       </div>
 
-      <Modal isOpen={modalState?.type !== "delete" && Boolean(modalState)} onClose={closeModal} title={editingAdjustment ? "Edit Adjustment" : "Add Adjustment"}>
+      <Modal isOpen={modalState?.type !== "delete" && Boolean(modalState)} onClose={closeModal} title={editingAdjustment ? "Edit Discount or Charge" : "Add Discount or Charge"}>
         <form onSubmit={(event) => void submitAdjustment(event)} className="grid gap-3">
-          <input autoFocus value={label} onChange={(event) => setLabel(event.target.value)} className="w-full rounded-lg border border-stone-300 px-3 py-3 outline-none focus:border-amber-700" placeholder="Tax, service charge, delivery fee" />
+          <input autoFocus value={label} onChange={(event) => setLabel(event.target.value)} className="w-full rounded-lg border border-stone-300 px-3 py-3 outline-none focus:border-amber-700" placeholder="Senior discount, service charge, delivery fee" />
+          <select value={effect} onChange={(event) => setEffect(event.target.value as "discount" | "charge")} className="w-full rounded-lg border border-stone-300 px-3 py-3 outline-none focus:border-amber-700">
+            <option value="discount">Discount</option>
+            <option value="charge">Charge</option>
+          </select>
           <select value={type} onChange={(event) => setType(event.target.value as "percentage" | "flat")} className="w-full rounded-lg border border-stone-300 px-3 py-3 outline-none focus:border-amber-700">
             <option value="percentage">Percentage</option>
             <option value="flat">Flat amount</option>
@@ -125,7 +136,7 @@ export function AdjustmentsSection() {
               Cancel
             </button>
             <button className="min-h-11 rounded-lg bg-stone-950 px-4 font-bold text-white" type="submit">
-              {editingAdjustment ? "Save Adjustment" : "Add Adjustment"}
+              {editingAdjustment ? "Save" : "Add"}
             </button>
           </div>
         </form>

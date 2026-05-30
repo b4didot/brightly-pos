@@ -4,7 +4,7 @@ import { CartSheet } from "../../components/CartSheet";
 import type { CartSheetState } from "../../components/CartSheet";
 import { usePosStore } from "../../store/usePosStore";
 import type { CartLine, CartTotals, Item, OrderType, PaymentMethod } from "../../types";
-import { formatPeso } from "../../utils/money";
+import { formatPeso, formatSignedPeso } from "../../utils/money";
 import type { VatBreakdown } from "../../utils/vat";
 import { IconButton, SummaryLine, VatBreakdownLines } from "./OrderUi";
 
@@ -177,7 +177,7 @@ export function CartPanel({
             <SummaryLine
               key={adjustment.adjustmentId}
               label={adjustment.label}
-              value={formatPeso(adjustment.computedAmount)}
+              value={formatSignedPeso(adjustment.computedAmount)}
             />
           ))}
           <VatBreakdownLines
