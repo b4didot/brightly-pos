@@ -196,6 +196,26 @@ class BrightlyDatabase extends Dexie {
         if (txn.discount === undefined) txn.discount = null;
       });
     });
+
+    this.version(12).stores({
+      categories: "&id, name",
+      items: "&id, categoryId, name, isOutOfStock, isAddOn",
+      adjustments: "&id, label, enabled",
+      discountTemplates: "&id, label",
+      settings: "&id",
+      transactions: "&id, transactionNumber, createdAt, paymentMethod",
+      transactionItems: "&id, transactionId, itemId",
+      itemVariants: "&id, itemId, sortOrder",
+      modifiers: "&id, label",
+      itemModifiers: "&id, itemId, modifierId",
+      itemAddOns: "&id, itemId, addOnItemId",
+    }).upgrade(async (transaction) => {
+      await transaction.table<Transaction, string>("transactions").toCollection().modify((txn) => {
+        txn.isVoided = txn.isVoided ?? false;
+        txn.voidReason = txn.voidReason ?? null;
+        txn.voidedAt = txn.voidedAt ?? null;
+      });
+    });
   }
 }
 

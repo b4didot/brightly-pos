@@ -1,6 +1,4 @@
-import { Capacitor } from "@capacitor/core";
-import { Directory, Filesystem } from "@capacitor/filesystem";
-import { Share } from "@capacitor/share";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
 type ReportFileInput = {
   data: string;
@@ -9,6 +7,15 @@ type ReportFileInput = {
   encoding?: "base64" | "text";
 };
 
+type ReportDownloaderPlugin = {
+  save(options: { data: string; filename: string; mimeType: string }): Promise<{
+    filename: string;
+    uri: string;
+  }>;
+};
+
+const ReportDownloader = registerPlugin<ReportDownloaderPlugin>("ReportDownloader");
+
 export async function downloadFile({
   data,
   filename,
@@ -16,18 +23,10 @@ export async function downloadFile({
   encoding = "text",
 }: ReportFileInput) {
   if (Capacitor.isNativePlatform()) {
-    const result = await Filesystem.writeFile({
-      path: `reports/${filename}`,
+    await ReportDownloader.save({
       data: encoding === "base64" ? data : textToBase64(data),
-      directory: Directory.Cache,
-      recursive: true,
-    });
-
-    await Share.share({
-      title: filename,
-      text: "Your Brightly POS report is ready.",
-      url: result.uri,
-      dialogTitle: "Save or share report",
+      filename,
+      mimeType,
     });
 
     return;

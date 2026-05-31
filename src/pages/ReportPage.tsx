@@ -19,8 +19,9 @@ export function ReportPage() {
     const startDate = reportStartDate <= reportEndDate ? reportStartDate : reportEndDate;
     const endDate = reportStartDate <= reportEndDate ? reportEndDate : reportStartDate;
 
-    return transactions.filter((transaction) =>
-      isWithinDateRange(transaction.createdAt, startDate, endDate),
+    return transactions.filter(
+      (transaction) =>
+        !transaction.isVoided && isWithinDateRange(transaction.createdAt, startDate, endDate),
     );
   }, [reportEndDate, reportStartDate, transactions]);
   const reportTotals = filteredTransactions.reduce(
@@ -142,7 +143,7 @@ export function ReportPage() {
       setIsExporting(true);
       setExportStatus("Preparing report...");
       await downloadFile(input);
-      setExportStatus("Report is ready. Choose where to save or share it.");
+      setExportStatus(`Saved to Downloads/Brightly POS/${input.filename}.`);
     } catch (error) {
       console.error(error);
       setExportStatus("Could not export the report. Please try again.");

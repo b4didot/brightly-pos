@@ -75,6 +75,7 @@ type PosState = {
     transactionId?: string;
   }) => Promise<Transaction>;
   markTransactionServed: (transactionId: string) => Promise<void>;
+  voidTransaction: (transactionId: string, reason: string) => Promise<void>;
   saveCategory: (category: Pick<Category, "name" | "defaultColor"> & { id?: string }) => Promise<void>;
   deleteCategory: (categoryId: string) => Promise<void>;
   saveItem: (item: Pick<Item, "name" | "price" | "categoryId"> & { id?: string }) => Promise<void>;
@@ -437,6 +438,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       totalAmount: totals.total,
       ...vatBreakdown,
       isServed: false,
+      isVoided: false,
+      voidReason: null,
+      voidedAt: null,
     };
 
     const transactionItems: TransactionItem[] = state.cart.flatMap((line) => {
@@ -478,11 +482,26 @@ export const usePosStore = create<PosState>((set, get) => ({
   markTransactionServed: async (transactionId) => {
     const transaction = await db.transactions.get(transactionId);
 
-    if (!transaction) {
+    if (!transaction || transaction.isVoided) {
       return;
     }
 
     await db.transactions.update(transactionId, { isServed: true });
+    set(await loadSnapshot());
+  },
+  voidTransaction: async (transactionId, reason) => {
+    const transaction = await db.transactions.get(transactionId);
+    const trimmedReason = reason.trim();
+
+    if (!transaction || transaction.isVoided || trimmedReason.length === 0) {
+      return;
+    }
+
+    await db.transactions.update(transactionId, {
+      isVoided: true,
+      voidReason: trimmedReason,
+      voidedAt: new Date().toISOString(),
+    });
     set(await loadSnapshot());
   },
   saveCategory: async ({ id, name, defaultColor }) => {

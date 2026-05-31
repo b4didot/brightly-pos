@@ -13,8 +13,6 @@
     "android:apk": "npm run android:sync && cd android && gradlew.bat assembleDebug"
   },
   "dependencies": {
-    "@capacitor/filesystem": "^8.1.2",
-    "@capacitor/share": "^8.0.1",
     "@tailwindcss/vite": "^4.3.0",
     "dexie": "^4.4.2",
     "lucide-react": "^1.16.0",

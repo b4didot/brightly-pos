@@ -143,6 +143,9 @@ export type Transaction = {
   vatableSales: number;
   vatAmount: number;
   isServed: boolean;
+  isVoided: boolean;
+  voidReason: string | null;
+  voidedAt: string | null;
 };
 
 export type TransactionItem = {
