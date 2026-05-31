@@ -1,5 +1,5 @@
 import { CalendarDays } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { usePosStore } from "../store/usePosStore";
 import type { Transaction } from "../types";
@@ -8,6 +8,8 @@ import { downloadFile } from "../utils/download";
 import { formatPeso, formatSignedPeso, toPesoNumber } from "../utils/money";
 
 export function ReportPage() {
+  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const transactions = usePosStore((state) => state.transactions);
   const transactionItems = usePosStore((state) => state.transactionItems);
   const reportStartDate = usePosStore((state) => state.reportStartDate);
@@ -79,7 +81,7 @@ export function ReportPage() {
     });
   }
 
-  function exportCsv() {
+  async function exportCsv() {
     const rows = exportRows();
     const headers = Object.keys(
       rows[0] ?? {
@@ -116,14 +118,37 @@ export function ReportPage() {
       ),
     ].join("\n");
 
-    downloadFile(csv, `brightly-report-${reportStartDate}-to-${reportEndDate}.csv`, "text/csv");
+    await exportReport({
+      data: csv,
+      filename: `brightly-report-${reportStartDate}-to-${reportEndDate}.csv`,
+      mimeType: "text/csv",
+    });
   }
 
-  function exportXlsx() {
+  async function exportXlsx() {
     const sheet = XLSX.utils.json_to_sheet(exportRows());
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Transactions");
-    XLSX.writeFile(workbook, `brightly-report-${reportStartDate}-to-${reportEndDate}.xlsx`);
+    await exportReport({
+      data: XLSX.write(workbook, { bookType: "xlsx", type: "base64" }),
+      filename: `brightly-report-${reportStartDate}-to-${reportEndDate}.xlsx`,
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      encoding: "base64",
+    });
+  }
+
+  async function exportReport(input: Parameters<typeof downloadFile>[0]) {
+    try {
+      setIsExporting(true);
+      setExportStatus("Preparing report...");
+      await downloadFile(input);
+      setExportStatus("Report is ready. Choose where to save or share it.");
+    } catch (error) {
+      console.error(error);
+      setExportStatus("Could not export the report. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   }
 
   return (
@@ -149,7 +174,7 @@ export function ReportPage() {
         </label>
         <button
           type="button"
-          disabled={filteredTransactions.length === 0}
+          disabled={filteredTransactions.length === 0 || isExporting}
           onClick={exportCsv}
           className="mt-auto min-h-12 rounded-lg border border-stone-300 px-4 font-bold disabled:cursor-not-allowed disabled:text-stone-300"
         >
@@ -157,12 +182,17 @@ export function ReportPage() {
         </button>
         <button
           type="button"
-          disabled={filteredTransactions.length === 0}
+          disabled={filteredTransactions.length === 0 || isExporting}
           onClick={exportXlsx}
           className="mt-auto min-h-12 rounded-lg bg-stone-950 px-4 font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-300"
         >
           XLSX
         </button>
+        {exportStatus ? (
+          <p className="text-sm font-semibold text-stone-600 md:col-span-4" role="status">
+            {exportStatus}
+          </p>
+        ) : null}
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
