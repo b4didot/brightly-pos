@@ -1,5 +1,12 @@
 import Dexie, { type Table } from "dexie";
-import { seedCategories, seedItems } from "../constants/catalog";
+import {
+  seedCategories,
+  seedItemAddOns,
+  seedItemModifiers,
+  seedItems,
+  seedItemVariants,
+  seedModifiers,
+} from "../constants/catalog";
 import type {
   Adjustment,
   Category,
@@ -217,6 +224,10 @@ export async function ensureDatabaseSeeded() {
 
   const categoryCount = await db.categories.count();
   const itemCount = await db.items.count();
+  const itemVariantCount = await db.itemVariants.count();
+  const modifierCount = await db.modifiers.count();
+  const itemModifierCount = await db.itemModifiers.count();
+  const itemAddOnCount = await db.itemAddOns.count();
 
   if (categoryCount === 0) {
     await db.categories.bulkPut(seedCategories);
@@ -244,6 +255,22 @@ export async function ensureDatabaseSeeded() {
         itemsMissingAddOnFlag.map((item) => db.items.update(item.id, { isAddOn: false })),
       );
     }
+  }
+
+  if (itemVariantCount === 0) {
+    await db.itemVariants.bulkPut(seedItemVariants);
+  }
+
+  if (modifierCount === 0) {
+    await db.modifiers.bulkPut(seedModifiers);
+  }
+
+  if (itemModifierCount === 0) {
+    await db.itemModifiers.bulkPut(seedItemModifiers);
+  }
+
+  if (itemAddOnCount === 0) {
+    await db.itemAddOns.bulkPut(seedItemAddOns);
   }
 }
 

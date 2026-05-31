@@ -1,6 +1,6 @@
 import { Banknote, Check, CreditCard } from "lucide-react";
 import type { CardStep, CashStep } from "../OrderPage";
-import type { CartTotals, OrderType, PaymentMethod } from "../../types";
+import type { CartTotals, PaymentMethod } from "../../types";
 import type { VatBreakdown } from "../../utils/vat";
 import { formatPeso, formatSignedPeso } from "../../utils/money";
 import { CompleteNotice, ErrorNotice, ModalAction, ModalFrame, SummaryLine, VatBreakdownLines } from "./OrderUi";
@@ -15,7 +15,6 @@ export function PaymentModal({
   modalTotal,
   modalTotals,
   notice,
-  orderType,
   referenceId,
   vatBreakdown,
   onCashReceivedChange,
@@ -36,7 +35,6 @@ export function PaymentModal({
   modalTotal: number;
   modalTotals: CartTotals;
   notice: string;
-  orderType: OrderType;
   referenceId: string;
   vatBreakdown: VatBreakdown;
   onCashReceivedChange: (value: string) => void;
@@ -52,11 +50,6 @@ export function PaymentModal({
 
   return (
     <ModalFrame title={method === "cash" ? "Cash Tender" : "Card Payment"} onClose={onClose}>
-      <div className="flex justify-center">
-        <span className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1 text-xs font-bold text-stone-600">
-          {orderType === "dine-in" ? "Dine In" : "Take Out"}
-        </span>
-      </div>
       {isReviewStep ? (
         <div className="mt-4 grid gap-4">
           <div className="rounded-md bg-stone-50 px-3 py-3">

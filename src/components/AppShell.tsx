@@ -22,7 +22,7 @@ export function AppShell() {
   return (
     <main className={`app-shell app-shell-${activeView} min-h-screen bg-[#f7f4ef] text-stone-950`}>
       <header className="app-header sticky top-0 z-20 border-b border-stone-200 bg-[#fffaf3]/95 px-3 py-3 backdrop-blur sm:px-4">
-        <div className="mx-auto flex max-w-7xl flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="flex w-full flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="app-header-title min-w-0 text-center sm:text-left">
             <p className="app-header-label text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
               Brightly POS

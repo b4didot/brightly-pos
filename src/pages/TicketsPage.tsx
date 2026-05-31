@@ -1,8 +1,6 @@
 import { Check } from "lucide-react";
-import { useMemo } from "react";
 import { usePosStore } from "../store/usePosStore";
 import type { Transaction, TransactionItem } from "../types";
-import { toDateInputValue } from "../utils/dates";
 import { formatPeso } from "../utils/money";
 
 function TicketCard({
@@ -98,14 +96,8 @@ export function TicketsPage() {
   const transactionItems = usePosStore((state) => state.transactionItems);
   const markTransactionServed = usePosStore((state) => state.markTransactionServed);
 
-  const today = toDateInputValue(new Date());
-
-  const todaysTransactions = useMemo(() => {
-    return transactions.filter((txn) => txn.createdAt.startsWith(today));
-  }, [transactions, today]);
-
-  const pending = todaysTransactions.filter((txn) => !txn.isServed);
-  const served = todaysTransactions.filter((txn) => txn.isServed);
+  const pending = transactions.filter((txn) => !txn.isServed);
+  const served = transactions.filter((txn) => txn.isServed);
 
   function getItemsForTransaction(transactionId: string) {
     return transactionItems.filter((item) => item.transactionId === transactionId);
@@ -121,11 +113,11 @@ export function TicketsPage() {
 
   return (
     <section className="mx-auto max-w-3xl px-3 pb-8 pt-3">
-      <h1 className="mb-4 text-lg font-bold text-stone-950">Today's Tickets</h1>
+      <h1 className="mb-4 text-lg font-bold text-stone-950">Tickets</h1>
 
-      {todaysTransactions.length === 0 && (
+      {transactions.length === 0 && (
         <div className="grid min-h-40 place-items-center rounded-lg border border-dashed border-stone-300 text-sm text-stone-500">
-          No orders yet today
+          No orders yet
         </div>
       )}
 

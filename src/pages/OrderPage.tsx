@@ -239,7 +239,7 @@ export function OrderPage() {
   }
 
   return (
-    <section className="order-layout mx-auto grid max-w-7xl gap-3 px-3 pb-20 pt-3 md:grid-cols-[minmax(0,1fr)_340px] md:pb-3 lg:grid-cols-[minmax(0,1fr)_360px]">
+    <section className="order-layout grid w-full gap-3 px-3 pb-20 pt-3 md:grid-cols-[minmax(0,1fr)_340px] md:pb-3 lg:grid-cols-[minmax(0,1fr)_360px]">
       <MenuGrid animatingItemId={animatingItemId} cartSheetState={cartSheetState} onAddToCart={handleAddToCart} />
 
       <CartPanel
@@ -276,7 +276,6 @@ export function OrderPage() {
           modalTotal={modalTotal}
           modalTotals={modalTotals}
           notice={notice}
-          orderType={pendingOrderType}
           referenceId={referenceId}
           vatBreakdown={modalVatBreakdown}
           onClose={closePaymentModal}

@@ -23,8 +23,8 @@ type ExpandedSections = {
 
 export function SettingsPage() {
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
-    categories: true,
-    items: true,
+    categories: false,
+    items: false,
     addOns: false,
     modifiers: false,
     adjustments: false,

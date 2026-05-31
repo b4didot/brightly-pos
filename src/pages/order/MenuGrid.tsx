@@ -78,7 +78,7 @@ export function MenuGrid({
         )}
       </div>
 
-      <div className="menu-tile-grid grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+      <div className="menu-tile-grid grid grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-3">
         {filteredItems.map((item) => {
           const category = categories.find((entry) => entry.id === item.categoryId);
 
