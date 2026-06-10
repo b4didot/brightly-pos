@@ -1,90 +1,167 @@
-# React + TypeScript + Vite
+# Brightly POS
 
-## Android packaging
+Brightly POS is a local-first point-of-sale application for small food and beverage shops. It runs as a web app during development and can also be packaged as an Android app with Capacitor.
 
-This app is configured for Android packaging with Capacitor.
+This guide explains how to download the project and run it on your computer.
 
-Useful commands:
+## What You Need
+
+Install these before running the app:
+
+- Git
+- Node.js
+- npm
+
+Node.js includes npm. If you are unsure which Node.js version to install, use the current LTS version from the official Node.js website.
+
+Optional, only if you want to build the Android app:
+
+- Android Studio
+- Android SDK
+- Java/JDK configured for Android builds
+
+## Download The Project
+
+Open a terminal and run:
 
 ```sh
+git clone <repository-url>
+```
+
+Then go inside the project folder:
+
+```sh
+cd brightly-pos
+```
+
+Replace `<repository-url>` with the actual GitHub repository URL.
+
+## Install Dependencies
+
+Run this once after cloning the project:
+
+```sh
+npm install
+```
+
+This downloads everything the app needs to run.
+
+## Run The App Locally
+
+Start the local development server:
+
+```sh
+npm run dev
+```
+
+After the command runs, the terminal will show a local URL, usually:
+
+```txt
+http://localhost:5173
+```
+
+Open that URL in your browser.
+
+## Build The Web App
+
+To check that the app can be built for production:
+
+```sh
+npm run build
+```
+
+This creates a production build in the `dist` folder.
+
+## Preview The Production Build
+
+After building, you can preview the production version locally:
+
+```sh
+npm run preview
+```
+
+The terminal will show a local URL that you can open in your browser.
+
+## Android App Setup
+
+The Android project is already included in the `android` folder.
+
+Before using Android commands, make sure Android Studio, the Android SDK, and a working JDK are installed.
+
+To build the web app and sync it into the Android project:
+
+```sh
+npm run android:sync
+```
+
+To open the Android project in Android Studio:
+
+```sh
+npm run android:open
+```
+
+To build a debug APK:
+
+```sh
+npm run android:apk
+```
+
+The debug APK will be created at:
+
+```txt
+android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Useful Commands
+
+```sh
+npm install
+npm run dev
+npm run build
+npm run preview
+npm run lint
 npm run android:sync
 npm run android:open
 npm run android:apk
 ```
 
-`npm run android:sync` builds the Vite app and copies the web output into the native Android project.
-`npm run android:apk` builds a debug APK at `android/app/build/outputs/apk/debug/app-debug.apk`.
+## Main Dependencies
 
-Before building an APK locally, install Android Studio or otherwise make a JDK and Android SDK available to Gradle. On Windows, Android Studio's bundled JDK is usually enough once `JAVA_HOME` points to it and the Android SDK is installed.
+The app uses:
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+- React for the user interface
+- TypeScript for safer code
+- Vite for local development and builds
+- Tailwind CSS for styling
+- Zustand for app state
+- Dexie and IndexedDB for local data storage
+- Capacitor for Android packaging
+- XLSX for report exports
+- lucide-react for icons
 
-Currently, two official plugins are available:
+## Local Data
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Brightly POS stores app data locally in the browser or Android device using IndexedDB.
 
-## React Compiler
+This means:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- The app can work without internet for normal local use.
+- Local browser data can be cleared if the browser storage is deleted.
+- Development data on one computer or browser is separate from another device.
 
-## Expanding the ESLint configuration
+## Troubleshooting
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+If the app does not start, try:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+If the browser page is already open but not updating, stop the terminal command with `Ctrl + C`, then run:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm run dev
 ```
+
+If Android commands fail, confirm that Android Studio, the Android SDK, and Java/JDK are installed and configured correctly.
