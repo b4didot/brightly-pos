@@ -80,7 +80,6 @@ select {
     text-align: left !important;
   }
 
-  .app-header-label,
   .app-header nav span {
     display: none !important;
   }
