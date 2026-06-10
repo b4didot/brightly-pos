@@ -4,7 +4,7 @@ This document describes the features currently implemented in the app.
 
 ## App Access
 
-Brightly POS opens directly into the register. There is no activation token, PIN login, role gate, or permission gate in the current app.
+Brightly POS opens directly into the register. There is no activation token, PIN login, role gate, sync, backup, or permission gate in the current app.
 
 ## Order Screen
 
@@ -122,6 +122,8 @@ Settings sections currently include:
 - Discounts.
 - Inclusive VAT.
 - Payment options.
+
+Settings currently do not include admin, backup, sync, auth, token, PIN, role, or permission controls.
 
 ## Categories
 

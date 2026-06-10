@@ -34,7 +34,7 @@ Checkout must remain local and reliable.
 
 Do not introduce a backend dependency into order entry, checkout, tickets, settings, or reports without updating architecture docs and explaining the tradeoff.
 
-The current app has no activation, login, PIN, role, or permission gate.
+The current app has no activation, login, PIN, role, sync, backup, or permission gate.
 
 ## State Rules
 
@@ -63,7 +63,7 @@ Shared persisted types live in `src/types/index.ts`.
 When adding or changing persisted fields:
 
 - Update TypeScript types.
-- Add a Dexie migration if existing users need the field.
+- Add a Dexie migration if existing local data needs the field.
 - Update seed/default behavior if needed.
 - Update `docs/DATABASE.md`.
 

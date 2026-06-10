@@ -34,7 +34,7 @@ High-level flow:
 2. `AppShell` renders the header navigation.
 3. `AppShell` renders the active view.
 
-There is no activation, login, PIN, role, or permission gate in the current app.
+There is no activation, login, PIN, role, sync, backup, or permission gate in the current app.
 
 ## Main Views
 
@@ -44,7 +44,7 @@ Current views:
 
 - `order` - active ordering and checkout.
 - `tickets` - pending, served, and voided orders.
-- `settings` - menu, payment, and tax settings.
+- `settings` - menu, modifier, add-on, discount, payment, and tax settings.
 - `report` - transaction reporting and exports.
 
 ## State Architecture
