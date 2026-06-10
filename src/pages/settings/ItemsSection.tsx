@@ -22,10 +22,6 @@ export function ItemsSection() {
   const toggleItemOutOfStock = usePosStore((state) => state.toggleItemOutOfStock);
   const saveItemVariant = usePosStore((state) => state.saveItemVariant);
   const deleteItemVariant = usePosStore((state) => state.deleteItemVariant);
-  const linkModifierToItem = usePosStore((state) => state.linkModifierToItem);
-  const unlinkModifierFromItem = usePosStore((state) => state.unlinkModifierFromItem);
-  const linkAddOnToItem = usePosStore((state) => state.linkAddOnToItem);
-  const unlinkAddOnFromItem = usePosStore((state) => state.unlinkAddOnFromItem);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [itemName, setItemName] = useState("");
   const [itemPrice, setItemPrice] = useState("");
@@ -36,6 +32,20 @@ export function ItemsSection() {
 
   const selectedItem =
     modalState && "selectedId" in modalState ? items.find((item) => item.id === modalState.selectedId) : null;
+  const linkedModifiers = editingItem
+    ? modifiers.filter((modifier) =>
+        itemModifiers.some(
+          (itemModifier) => itemModifier.itemId === editingItem.id && itemModifier.modifierId === modifier.id,
+        ),
+      )
+    : [];
+  const linkedAddOns = editingItem
+    ? items.filter(
+        (item) =>
+          item.isAddOn &&
+          itemAddOns.some((itemAddOn) => itemAddOn.itemId === editingItem.id && itemAddOn.addOnItemId === item.id),
+      )
+    : [];
 
   function closeModal() {
     setModalState(null);
@@ -99,7 +109,7 @@ export function ItemsSection() {
       <button
         type="button"
         onClick={openAddModal}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 font-bold text-white transition hover:bg-stone-800 sm:w-auto"
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 font-bold text-white transition hover:bg-stone-800"
       >
         <Plus size={17} />
         Add Item
@@ -211,79 +221,46 @@ export function ItemsSection() {
                 </div>
               </div>
 
-              {modifiers.length > 0 && (
-                <div className="rounded-lg border border-stone-200 p-3">
-                  <p className="mb-2 text-sm font-bold text-stone-700">Modifiers</p>
+              <div className="rounded-lg border border-stone-200 p-3">
+                <p className="mb-2 text-sm font-bold text-stone-700">Modifiers</p>
+                {linkedModifiers.length === 0 ? (
+                  <p className="rounded-md bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-500">
+                    No modifiers linked
+                  </p>
+                ) : (
                   <div className="space-y-1.5">
-                    {modifiers.map((modifier) => {
-                      const isLinked = itemModifiers.some(
-                        (itemModifier) =>
-                          itemModifier.itemId === editingItem.id && itemModifier.modifierId === modifier.id,
-                      );
-
-                      return (
-                        <label
-                          key={modifier.id}
-                          className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-stone-50"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isLinked}
-                            onChange={() =>
-                              void (isLinked
-                                ? unlinkModifierFromItem(editingItem.id, modifier.id)
-                                : linkModifierToItem(editingItem.id, modifier.id))
-                            }
-                            className="h-4 w-4 accent-amber-700"
-                          />
-                          <div>
-                            <span className="block text-sm font-semibold text-stone-800">{modifier.label}</span>
-                            <span className="block text-xs text-stone-500">{modifier.options.join(" - ")}</span>
-                          </div>
-                        </label>
-                      );
-                    })}
+                    {linkedModifiers.map((modifier) => (
+                      <div key={modifier.id} className="rounded-md bg-stone-50 px-3 py-2">
+                        <span className="block text-sm font-semibold text-stone-800">{modifier.label}</span>
+                        <span className="block text-xs text-stone-500">{modifier.options.join(" - ")}</span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {items.some((item) => item.isAddOn) && (
-                <div className="rounded-lg border border-stone-200 p-3">
-                  <p className="mb-2 text-sm font-bold text-stone-700">Add-ons</p>
+              <div className="rounded-lg border border-stone-200 p-3">
+                <p className="mb-2 text-sm font-bold text-stone-700">Add-ons</p>
+                {linkedAddOns.length === 0 ? (
+                  <p className="rounded-md bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-500">
+                    No add-ons linked
+                  </p>
+                ) : (
                   <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
-                    {items
-                      .filter((item) => item.id !== editingItem.id && item.isAddOn)
-                      .map((addOnItem) => {
-                        const isLinked = itemAddOns.some(
-                          (itemAddOn) =>
-                            itemAddOn.itemId === editingItem.id && itemAddOn.addOnItemId === addOnItem.id,
-                        );
-
-                        return (
-                          <label
-                            key={addOnItem.id}
-                            className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 hover:bg-stone-50"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isLinked}
-                              onChange={() =>
-                                void (isLinked
-                                  ? unlinkAddOnFromItem(editingItem.id, addOnItem.id)
-                                  : linkAddOnToItem(editingItem.id, addOnItem.id))
-                              }
-                              className="h-4 w-4 accent-amber-700"
-                            />
-                            <div>
-                              <span className="block text-sm font-semibold text-stone-800">{addOnItem.name}</span>
-                              <span className="block text-xs text-stone-500">{formatPeso(addOnItem.price)}</span>
-                            </div>
-                          </label>
-                        );
-                      })}
+                    {linkedAddOns.map((addOnItem) => (
+                      <div
+                        key={addOnItem.id}
+                        className="flex min-w-0 items-center justify-between gap-2 rounded-md bg-stone-50 px-3 py-2"
+                      >
+                        <span className="min-w-0 truncate text-sm font-semibold text-stone-800">{addOnItem.name}</span>
+                        <span className="shrink-0 whitespace-nowrap text-xs text-stone-500">
+                          {formatPeso(addOnItem.price)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </>
           )}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

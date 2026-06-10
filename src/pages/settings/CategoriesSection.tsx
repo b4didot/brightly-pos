@@ -79,7 +79,7 @@ export function CategoriesSection() {
       <button
         type="button"
         onClick={openAddModal}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 font-bold text-white transition hover:bg-stone-800 sm:w-auto"
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 font-bold text-white transition hover:bg-stone-800"
       >
         <Plus size={17} />
         Add Category

@@ -44,7 +44,7 @@ Current views:
 
 - `order` - active ordering and checkout.
 - `tickets` - pending, served, and voided orders.
-- `settings` - menu, modifier, add-on, discount, payment, and tax settings.
+- `settings` - menu, modifier, add-on, adjustment, discount, payment, and tax settings.
 - `report` - transaction reporting and exports.
 
 ## State Architecture
@@ -93,7 +93,8 @@ Important behavior:
 - Transactions and transaction items are persisted only after successful checkout.
 - Item names, prices, variants, modifiers, and add-ons are snapshotted into transaction items.
 - VAT breakdown is snapshotted into each transaction.
-- Discounts and enabled adjustments are computed before transaction persistence.
+- Discounts and enabled charge adjustments are computed before transaction persistence.
+- The mobile cart sheet state is reset to `minimized` after successful checkout.
 
 The app intentionally preserves historical transaction accuracy even if menu items change later.
 

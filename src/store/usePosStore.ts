@@ -667,7 +667,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       id: id ?? createId("adj"),
       label: label.trim(),
       type,
-      value,
+      value: Math.max(0, value),
       enabled,
       createdAt: new Date().toISOString(),
     };

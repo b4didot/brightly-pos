@@ -221,14 +221,14 @@ export function CartPanel({
             active={activePaymentMethod === "cash"}
             disabled={!settings.cashEnabled || cartRows.length === 0}
             icon={<Banknote size={18} />}
-            label="Cash Tender"
+            label="Cash"
             onClick={() => onOpenPaymentModal("cash")}
           />
           <PaymentButton
             active={activePaymentMethod === "card"}
             disabled={!settings.cardEnabled || cartRows.length === 0}
             icon={<CreditCard size={18} />}
-            label="Card"
+            label="Online"
             onClick={() => onOpenPaymentModal("card")}
           />
         </div>

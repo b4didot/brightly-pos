@@ -200,6 +200,7 @@ export function OrderPage() {
       setPendingTransactionId(createId("txn"));
       setNotice(`${transaction.transactionNumber} completed.`);
       setCashStep("complete");
+      setCartSheetState("minimized");
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : "Checkout failed.");
     }
@@ -233,6 +234,7 @@ export function OrderPage() {
       setPendingTransactionId(createId("txn"));
       setNotice(`${transaction.transactionNumber} completed.`);
       setCardStep("complete");
+      setCartSheetState("minimized");
     } catch (checkoutError) {
       setError(checkoutError instanceof Error ? checkoutError.message : "Checkout failed.");
     }

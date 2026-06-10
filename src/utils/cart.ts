@@ -29,13 +29,12 @@ export function calculateCartTotals(
     : null;
 
   const appliedAdjustments: AppliedAdjustment[] = adjustments
-    .filter((adjustment) => adjustment.enabled)
+    .filter((adjustment) => adjustment.enabled && adjustment.value > 0)
     .map((adjustment) => {
-      const sign = adjustment.value < 0 ? -1 : 1;
       const computedAmount =
         adjustment.type === "percentage"
-          ? Math.round(subtotalAfterDiscount * (Math.abs(adjustment.value) / 100)) * sign
-          : Math.round(adjustment.value);
+          ? Math.round(subtotalAfterDiscount * (adjustment.value / 100))
+          : Math.round(Math.max(0, adjustment.value));
 
       return {
         adjustmentId: adjustment.id,

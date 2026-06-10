@@ -18,11 +18,13 @@ The order screen supports:
 - Dine-in or take-out order type.
 - Cart totals.
 - Cash checkout.
-- Card checkout.
+- Online checkout.
 - Discount application.
 - Inclusive VAT display.
 
 Items with variants, modifiers, or add-ons open a customization modal before being added to cart.
+
+On smaller screens, the cart is shown through a cart sheet with minimized, half, and full states. After a successful checkout, the cart sheet returns to the minimized state.
 
 ## Item Customization
 
@@ -47,14 +49,14 @@ Discounts are computed against subtotal and cannot reduce the cart below zero.
 
 ## Adjustments
 
-Adjustments are configurable additions or deductions.
+Adjustments are configurable additional charges. They are separate from discounts and VAT.
 
 Supported adjustment types:
 
 - Percentage.
 - Flat amount.
 
-Enabled adjustments are automatically applied to the cart after discounts.
+Enabled adjustments are automatically applied to the cart after discounts. Adjustment values are treated as non-negative charges; discounts must use the Discounts workflow instead.
 
 ## VAT
 
@@ -72,11 +74,11 @@ The app can:
 Supported payment methods:
 
 - Cash.
-- Card.
+- Online checkout, backed by the existing card payment method.
 
 Settings can enable or disable each method, but the app prevents disabling both at the same time.
 
-Card checkout currently requires a reference ID in the payment modal.
+Online checkout currently requires a reference ID in the payment modal.
 
 ## Tickets
 
@@ -103,7 +105,7 @@ The report screen supports:
 - Discount summary.
 - Adjustment summary.
 - Cash total.
-- Card total.
+- Card payment total.
 - Transaction table.
 - CSV export.
 - XLSX export.
@@ -124,6 +126,8 @@ Settings sections currently include:
 - Payment options.
 
 Settings currently do not include admin, backup, sync, auth, token, PIN, role, or permission controls.
+
+Primary add buttons inside settings sections are full-width section actions.
 
 ## Categories
 

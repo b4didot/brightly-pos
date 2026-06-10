@@ -50,7 +50,7 @@ Stores menu items and add-on items.
 
 `adjustments`
 
-Stores enabled or disabled cart-level additions or deductions, such as service charge.
+Stores enabled or disabled cart-level additional charges, such as service charge, packaging fee, or delivery fee. Discounts are stored separately in `discountTemplates` and applied through the discount workflow.
 
 `discountTemplates`
 
