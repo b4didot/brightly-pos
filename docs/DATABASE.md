@@ -19,7 +19,7 @@ brightly-pos-v0
 Current schema version:
 
 ```txt
-12
+13
 ```
 
 ## Tables
@@ -60,6 +60,12 @@ Stores reusable discount options.
 
 Stores register-wide settings. This is a singleton row with id `main`.
 
+The settings row includes shop display customization:
+
+- `shopName`
+- `primaryColor`
+- `secondaryColor`
+
 `transactions`
 
 Stores completed checkout records.
@@ -94,7 +100,7 @@ settings.id = "main"
 
 ## Schema Indexes
 
-Current version 12 indexes:
+Current version 13 indexes:
 
 ```ts
 categories: "&id, name"
@@ -138,6 +144,7 @@ Examples already in the app:
 - Add served state to transactions.
 - Add variants, modifiers, add-ons, and discount support.
 - Add void metadata.
+- Add shop display customization fields.
 
 ## Snapshot Philosophy
 

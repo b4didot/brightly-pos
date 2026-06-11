@@ -82,11 +82,16 @@ Online checkout currently requires a reference ID in the payment modal.
 
 ## Tickets
 
-The tickets view shows transactions grouped by:
+The tickets view can be filtered by:
 
 - Pending.
 - Served.
 - Voided.
+- All.
+
+The all tickets view shows tickets from newest to oldest without grouping by status.
+
+Pending tickets are shown as a live order queue from oldest to newest. Queue labels renumber automatically when a pending order is served or voided.
 
 Users can:
 
@@ -116,6 +121,7 @@ Report exports include transaction details and item snapshots.
 
 Settings sections currently include:
 
+- Shop.
 - Categories.
 - Items.
 - Modifiers.
@@ -124,6 +130,8 @@ Settings sections currently include:
 - Discounts.
 - Inclusive VAT.
 - Payment options.
+
+The Shop section controls the shop name shown in the app header plus primary and secondary color customization for the header branding.
 
 Settings currently do not include admin, backup, sync, auth, token, PIN, role, or permission controls.
 

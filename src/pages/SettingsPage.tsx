@@ -1,4 +1,14 @@
-import { BadgePercent, CreditCard, FolderOpen, Link2, ListPlus, Percent, ShoppingCart, SlidersHorizontal } from "lucide-react";
+import {
+  BadgePercent,
+  CreditCard,
+  FolderOpen,
+  Link2,
+  ListPlus,
+  Percent,
+  ShoppingBag,
+  ShoppingCart,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useState } from "react";
 import { AddOnsSection } from "./settings/AddOnsSection";
 import { AdjustmentsSection } from "./settings/AdjustmentsSection";
@@ -8,9 +18,11 @@ import { DiscountsSection } from "./settings/DiscountsSection";
 import { ItemsSection } from "./settings/ItemsSection";
 import { ModifiersSection } from "./settings/ModifiersSection";
 import { PaymentOptionsSection } from "./settings/PaymentOptionsSection";
+import { ShopSection } from "./settings/ShopSection";
 import { VatSection } from "./settings/VatSection";
 
 type ExpandedSections = {
+  shop: boolean;
   categories: boolean;
   items: boolean;
   addOns: boolean;
@@ -23,6 +35,7 @@ type ExpandedSections = {
 
 export function SettingsPage() {
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
+    shop: false,
     categories: false,
     items: false,
     addOns: false,
@@ -40,6 +53,15 @@ export function SettingsPage() {
   return (
     <section className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:px-4 sm:py-4 xl:grid-cols-[1fr_1fr]">
       <div className="space-y-4">
+        <CollapsibleSection
+          icon={<ShoppingBag size={21} />}
+          isOpen={expandedSections.shop}
+          title="Shop"
+          onToggle={() => toggleSection("shop")}
+        >
+          <ShopSection />
+        </CollapsibleSection>
+
         <CollapsibleSection
           icon={<FolderOpen size={21} />}
           isOpen={expandedSections.categories}

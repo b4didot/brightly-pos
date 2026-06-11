@@ -14,20 +14,29 @@ export function AppShell() {
   const loadError = usePosStore((state) => state.loadError);
   const load = usePosStore((state) => state.load);
   const resetLocalData = usePosStore((state) => state.resetLocalData);
+  const settings = usePosStore((state) => state.settings);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   return (
-    <main className={`app-shell app-shell-${activeView} min-h-screen overflow-x-hidden bg-[#f7f4ef] text-stone-950`}>
-      <header className="app-header sticky top-0 z-20 border-b border-stone-200 bg-[#fffaf3]/95 px-3 py-3 backdrop-blur sm:px-4">
+    <main
+      className={`app-shell app-shell-${activeView} min-h-screen overflow-x-hidden bg-[#f7f4ef] text-stone-950`}
+    >
+      <header
+        className="app-header sticky top-0 z-20 border-b border-stone-200 px-3 py-3 backdrop-blur sm:px-4"
+        style={{ backgroundColor: settings.secondaryColor }}
+      >
         <div className="flex w-full flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="app-header-title min-w-0 text-center sm:text-left">
-            <p className="app-header-label text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
+            <p
+              className="app-header-label text-xs font-semibold uppercase tracking-[0.18em]"
+              style={{ color: settings.primaryColor }}
+            >
               Brightly POS
             </p>
-            <h1 className="truncate text-xl font-bold text-stone-950">Coffee Bar</h1>
+            <h1 className="truncate text-xl font-bold text-stone-950">{settings.shopName}</h1>
           </div>
           <nav className="grid grid-cols-4 gap-1 rounded-full bg-stone-100 p-1 sm:w-auto sm:gap-2">
             <NavButton

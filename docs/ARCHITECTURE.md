@@ -79,7 +79,7 @@ The database name is:
 brightly-pos-v0
 ```
 
-The current Dexie schema version is `12`.
+The current Dexie schema version is `13`.
 
 `ensureDatabaseSeeded()` is called during store loading to create required default rows and seed starter catalog data when the local database is empty.
 

@@ -1,19 +1,27 @@
-import { Ban, Check, ChevronDown } from "lucide-react";
+import { Ban, Check, Clock3, List } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Modal } from "../components/Modal";
 import { usePosStore } from "../store/usePosStore";
 import type { Transaction, TransactionItem } from "../types";
 import { formatPeso } from "../utils/money";
 
+type TicketFilter = "pending" | "served" | "voided" | "all";
+type QueuedTicket = {
+  transaction: Transaction;
+  queueNumber?: number;
+};
+
 function TicketCard({
   transaction,
   items,
+  queueNumber,
   formatTime,
   onMarkServed,
   onVoid,
 }: {
   transaction: Transaction;
   items: TransactionItem[];
+  queueNumber?: number;
   formatTime: (iso: string) => string;
   onMarkServed: () => void;
   onVoid: () => void;
@@ -31,10 +39,12 @@ function TicketCard({
       }`}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-bold text-stone-950">
-            {transaction.transactionNumber}
-          </span>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {queueNumber !== undefined && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
+              Order {queueNumber}
+            </span>
+          )}
           <span
             className={`rounded-full px-2 py-0.5 text-xs font-bold ${
               transaction.orderType === "dine-in"
@@ -43,6 +53,9 @@ function TicketCard({
             }`}
           >
             {transaction.orderType === "dine-in" ? "Dine In" : "Take Out"}
+          </span>
+          <span className="text-sm font-bold text-stone-950">
+            {transaction.transactionNumber}
           </span>
           {isVoided && (
             <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
@@ -138,9 +151,7 @@ function TicketCard({
 }
 
 export function TicketsPage() {
-  const [isPendingOpen, setIsPendingOpen] = useState(true);
-  const [isServedOpen, setIsServedOpen] = useState(false);
-  const [isVoidedOpen, setIsVoidedOpen] = useState(false);
+  const [ticketFilter, setTicketFilter] = useState<TicketFilter>("pending");
   const [voidingTransaction, setVoidingTransaction] = useState<Transaction | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const [voidError, setVoidError] = useState("");
@@ -149,9 +160,34 @@ export function TicketsPage() {
   const markTransactionServed = usePosStore((state) => state.markTransactionServed);
   const voidTransaction = usePosStore((state) => state.voidTransaction);
 
-  const pending = transactions.filter((txn) => !txn.isServed && !txn.isVoided);
-  const served = transactions.filter((txn) => txn.isServed && !txn.isVoided);
-  const voided = transactions.filter((txn) => txn.isVoided);
+  const sortByArrival = (left: Transaction, right: Transaction) =>
+    left.createdAt.localeCompare(right.createdAt) || left.id.localeCompare(right.id);
+  const sortByNewestArrival = (left: Transaction, right: Transaction) =>
+    right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id);
+  const allTickets = [...transactions].sort(sortByArrival);
+  const allTicketsNewestFirst = [...transactions].sort(sortByNewestArrival);
+  const pending = allTickets.filter((txn) => !txn.isServed && !txn.isVoided);
+  const served = allTickets.filter((txn) => txn.isServed && !txn.isVoided);
+  const voided = allTickets.filter((txn) => txn.isVoided);
+  const queueNumbersByTransactionId = new Map(pending.map((transaction, index) => [transaction.id, index + 1]));
+  const ticketFilters: { id: TicketFilter; label: string; count: number }[] = [
+    { id: "pending", label: "Pending", count: pending.length },
+    { id: "served", label: "Served", count: served.length },
+    { id: "voided", label: "Voided", count: voided.length },
+    { id: "all", label: "All", count: transactions.length },
+  ];
+  const ticketFilterIcons = {
+    pending: Clock3,
+    served: Check,
+    voided: Ban,
+    all: List,
+  };
+  const ticketFilterColors: Record<TicketFilter, string> = {
+    pending: "#fef3c7",
+    served: "#d1fae5",
+    voided: "#fee2e2",
+    all: "#dbeafe",
+  };
 
   function getItemsForTransaction(transactionId: string) {
     return transactionItems.filter((item) => item.transactionId === transactionId);
@@ -194,9 +230,91 @@ export function TicketsPage() {
     closeVoidModal();
   }
 
+  function renderTicketCard({ transaction, queueNumber }: QueuedTicket) {
+    return (
+      <TicketCard
+        key={transaction.id}
+        transaction={transaction}
+        items={getItemsForTransaction(transaction.id)}
+        queueNumber={queueNumber}
+        formatTime={formatTime}
+        onMarkServed={() => void markTransactionServed(transaction.id)}
+        onVoid={() => openVoidModal(transaction)}
+      />
+    );
+  }
+
+  function renderTicketColumns(tickets: QueuedTicket[], columnCount: number) {
+    return Array.from({ length: columnCount }, (_, columnIndex) => (
+      <div key={columnIndex} className="grid content-start gap-3">
+        {tickets.filter((_, index) => index % columnCount === columnIndex).map(renderTicketCard)}
+      </div>
+    ));
+  }
+
+  function renderTicketList(tickets: Transaction[]) {
+    if (tickets.length === 0) {
+      return null;
+    }
+
+    const queuedTickets = tickets.map((transaction) => ({
+      transaction,
+      queueNumber: queueNumbersByTransactionId.get(transaction.id),
+    }));
+
+    return (
+      <>
+        <div className="ticket-list-mobile gap-3">
+          {queuedTickets.map(renderTicketCard)}
+        </div>
+        <div className="ticket-list-tablet gap-3">
+          {renderTicketColumns(queuedTickets, 2)}
+        </div>
+        <div className="ticket-list-desktop gap-3">
+          {renderTicketColumns(queuedTickets, 3)}
+        </div>
+      </>
+    );
+  }
+
+  const visibleTickets =
+    ticketFilter === "pending"
+      ? pending
+      : ticketFilter === "served"
+        ? served
+        : ticketFilter === "voided"
+          ? voided
+          : allTicketsNewestFirst;
+
   return (
-    <section className="mx-auto max-w-3xl px-3 pb-8 pt-3">
-      <h1 className="mb-4 text-lg font-bold text-stone-950">Tickets</h1>
+    <section className="mx-auto max-w-7xl px-3 pb-8 pt-3">
+      <div className="mb-4 flex min-w-0 items-center gap-3 overflow-hidden">
+        <h1 className="shrink-0 text-lg font-bold text-stone-950">Tickets</h1>
+        <div className="ml-auto flex min-w-0 flex-1 justify-end gap-2 overflow-x-auto pb-1">
+          {ticketFilters.map((filter) => {
+            const isSelected = ticketFilter === filter.id;
+            const FilterIcon = ticketFilterIcons[filter.id];
+
+            return (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setTicketFilter(filter.id)}
+                className={`inline-flex min-h-7 shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-bold transition ${
+                  isSelected ? "border-stone-950 text-stone-950 shadow-sm" : "border-transparent text-stone-700"
+                }`}
+                aria-pressed={isSelected}
+                aria-label={`${filter.label} tickets (${filter.count})`}
+                title={`${filter.label} (${filter.count})`}
+                style={{ backgroundColor: ticketFilterColors[filter.id] }}
+              >
+                <FilterIcon size={13} aria-hidden="true" />
+                <span>{filter.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {transactions.length === 0 && (
         <div className="grid min-h-40 place-items-center rounded-lg border border-dashed border-stone-300 text-sm text-stone-500">
@@ -204,98 +322,7 @@ export function TicketsPage() {
         </div>
       )}
 
-      {pending.length > 0 && (
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={() => setIsPendingOpen((isOpen) => !isOpen)}
-            className="mb-2 flex w-full items-center justify-between gap-2 rounded-md px-1 py-1 text-left text-xs font-bold uppercase tracking-wide text-stone-500 transition hover:bg-stone-100"
-            aria-expanded={isPendingOpen}
-          >
-            <span>Pending - {pending.length}</span>
-            <ChevronDown
-              size={16}
-              className={`shrink-0 transition-transform ${isPendingOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          {isPendingOpen && (
-            <div className="grid gap-3">
-              {pending.map((txn) => (
-                <TicketCard
-                  key={txn.id}
-                  transaction={txn}
-                  items={getItemsForTransaction(txn.id)}
-                  formatTime={formatTime}
-                  onMarkServed={() => void markTransactionServed(txn.id)}
-                  onVoid={() => openVoidModal(txn)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {served.length > 0 && (
-        <div>
-          <button
-            type="button"
-            onClick={() => setIsServedOpen((isOpen) => !isOpen)}
-            className="mb-2 flex w-full items-center justify-between gap-2 rounded-md px-1 py-1 text-left text-xs font-bold uppercase tracking-wide text-stone-500 transition hover:bg-stone-100"
-            aria-expanded={isServedOpen}
-          >
-            <span>Served - {served.length}</span>
-            <ChevronDown
-              size={16}
-              className={`shrink-0 transition-transform ${isServedOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          {isServedOpen && (
-            <div className="grid gap-3">
-              {served.map((txn) => (
-                <TicketCard
-                  key={txn.id}
-                  transaction={txn}
-                  items={getItemsForTransaction(txn.id)}
-                  formatTime={formatTime}
-                  onMarkServed={() => void markTransactionServed(txn.id)}
-                  onVoid={() => openVoidModal(txn)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {voided.length > 0 && (
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={() => setIsVoidedOpen((isOpen) => !isOpen)}
-            className="mb-2 flex w-full items-center justify-between gap-2 rounded-md px-1 py-1 text-left text-xs font-bold uppercase tracking-wide text-stone-500 transition hover:bg-stone-100"
-            aria-expanded={isVoidedOpen}
-          >
-            <span>Voided - {voided.length}</span>
-            <ChevronDown
-              size={16}
-              className={`shrink-0 transition-transform ${isVoidedOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          {isVoidedOpen && (
-            <div className="grid gap-3">
-              {voided.map((txn) => (
-                <TicketCard
-                  key={txn.id}
-                  transaction={txn}
-                  items={getItemsForTransaction(txn.id)}
-                  formatTime={formatTime}
-                  onMarkServed={() => void markTransactionServed(txn.id)}
-                  onVoid={() => openVoidModal(txn)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {renderTicketList(visibleTickets)}
 
       <Modal
         isOpen={voidingTransaction !== null}

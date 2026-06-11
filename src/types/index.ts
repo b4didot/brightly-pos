@@ -89,6 +89,9 @@ export type DiscountTemplate = {
 
 export type Settings = {
   id: "main";
+  shopName: string;
+  primaryColor: string;
+  secondaryColor: string;
   cashEnabled: boolean;
   cardEnabled: boolean;
   vatEnabled: boolean;

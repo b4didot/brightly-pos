@@ -60,6 +60,32 @@ Debug APK output:
 android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
+On Windows, Android Studio's bundled JDK is usually available at:
+
+```txt
+C:\Program Files\Android\Android Studio\jbr
+```
+
+If Gradle reports that `JAVA_HOME` is not set, configure it with PowerShell:
+
+```powershell
+setx JAVA_HOME "C:\Program Files\Android\Android Studio\jbr"
+```
+
+Close and reopen the terminal, then verify:
+
+```powershell
+java -version
+echo $env:JAVA_HOME
+```
+
+If `java -version` is still not found, add the bundled JDK `bin` folder to the
+user `PATH`, then reopen the terminal again:
+
+```powershell
+setx PATH "$env:PATH;C:\Program Files\Android\Android Studio\jbr\bin"
+```
+
 ## Project Structure
 
 ```txt

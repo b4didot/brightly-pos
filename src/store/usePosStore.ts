@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { seedCategories, seedItems } from "../constants/catalog";
-import { db, ensureDatabaseSeeded, resetDatabase } from "../db/database";
+import { db, defaultShopSettings, ensureDatabaseSeeded, resetDatabase } from "../db/database";
 import { calculateCartTotals } from "../utils/cart";
 import { compactDateKey, toDateInputValue } from "../utils/dates";
 import { createId } from "../utils/id";
@@ -101,12 +101,15 @@ type PosState = {
   setPaymentMethodEnabled: (method: PaymentMethod, enabled: boolean) => Promise<void>;
   setDiscountsEnabled: (enabled: boolean) => Promise<void>;
   updateVatSettings: (settings: Pick<Settings, "vatEnabled" | "vatPercentage">) => Promise<void>;
+  updateShopSettings: (settings: Pick<Settings, "shopName" | "primaryColor" | "secondaryColor">) => Promise<void>;
   setReportRange: (startDate: string, endDate: string) => void;
 };
 
 const today = toDateInputValue(new Date());
+const hexColorPattern = /^#[0-9a-f]{6}$/i;
 const defaultSettings: Settings = {
   id: "main",
+  ...defaultShopSettings,
   cashEnabled: true,
   cardEnabled: true,
   ...defaultVatSettings,
@@ -732,6 +735,19 @@ export const usePosStore = create<PosState>((set, get) => ({
       vatEnabled: vatSettings.vatEnabled,
       vatPercentage: Math.max(0, vatSettings.vatPercentage),
       vatInclusive: true,
+    };
+
+    await db.settings.put(nextSettings);
+    set({ settings: nextSettings });
+  },
+  updateShopSettings: async (shopSettings) => {
+    const settings = get().settings;
+    const trimmedShopName = shopSettings.shopName.trim();
+    const nextSettings: Settings = {
+      ...settings,
+      shopName: trimmedShopName.length > 0 ? trimmedShopName : defaultShopSettings.shopName,
+      primaryColor: hexColorPattern.test(shopSettings.primaryColor) ? shopSettings.primaryColor : settings.primaryColor,
+      secondaryColor: hexColorPattern.test(shopSettings.secondaryColor) ? shopSettings.secondaryColor : settings.secondaryColor,
     };
 
     await db.settings.put(nextSettings);

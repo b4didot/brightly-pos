@@ -22,6 +22,12 @@ import type {
 } from "../types";
 import { defaultVatSettings } from "../utils/vat";
 
+const defaultShopSettings = {
+  shopName: "Coffee Bar",
+  primaryColor: "#d97706",
+  secondaryColor: "#fffaf3",
+};
+
 class BrightlyDatabase extends Dexie {
   categories!: Table<Category, string>;
   items!: Table<Item, string>;
@@ -216,10 +222,31 @@ class BrightlyDatabase extends Dexie {
         txn.voidedAt = txn.voidedAt ?? null;
       });
     });
+
+    this.version(13).stores({
+      categories: "&id, name",
+      items: "&id, categoryId, name, isOutOfStock, isAddOn",
+      adjustments: "&id, label, enabled",
+      discountTemplates: "&id, label",
+      settings: "&id",
+      transactions: "&id, transactionNumber, createdAt, paymentMethod",
+      transactionItems: "&id, transactionId, itemId",
+      itemVariants: "&id, itemId, sortOrder",
+      modifiers: "&id, label",
+      itemModifiers: "&id, itemId, modifierId",
+      itemAddOns: "&id, itemId, addOnItemId",
+    }).upgrade(async (transaction) => {
+      await transaction.table<Settings, string>("settings").toCollection().modify((settings) => {
+        settings.shopName = settings.shopName ?? defaultShopSettings.shopName;
+        settings.primaryColor = settings.primaryColor ?? defaultShopSettings.primaryColor;
+        settings.secondaryColor = settings.secondaryColor ?? defaultShopSettings.secondaryColor;
+      });
+    });
   }
 }
 
 export const db = new BrightlyDatabase();
+export { defaultShopSettings };
 
 export async function ensureDatabaseSeeded() {
   const settings = await db.settings.get("main");
@@ -227,6 +254,7 @@ export async function ensureDatabaseSeeded() {
   if (!settings) {
     await db.settings.put({
       id: "main",
+      ...defaultShopSettings,
       cashEnabled: true,
       cardEnabled: true,
       ...defaultVatSettings,
@@ -235,6 +263,9 @@ export async function ensureDatabaseSeeded() {
   } else {
     await db.settings.put({
       ...settings,
+      shopName: settings.shopName ?? defaultShopSettings.shopName,
+      primaryColor: settings.primaryColor ?? defaultShopSettings.primaryColor,
+      secondaryColor: settings.secondaryColor ?? defaultShopSettings.secondaryColor,
       vatEnabled: settings.vatEnabled ?? defaultVatSettings.vatEnabled,
       vatPercentage: settings.vatPercentage ?? defaultVatSettings.vatPercentage,
       vatInclusive: true,

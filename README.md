@@ -20,6 +20,29 @@ Optional, only if you want to build the Android app:
 - Android SDK
 - Java/JDK configured for Android builds
 
+On Windows, Android Studio includes a bundled JDK. If `npm run android:apk`
+fails with `JAVA_HOME is not set`, point `JAVA_HOME` to Android Studio's
+bundled runtime:
+
+```powershell
+setx JAVA_HOME "C:\Program Files\Android\Android Studio\jbr"
+```
+
+Close and reopen the terminal after running `setx`, then verify Java is
+available:
+
+```powershell
+java -version
+echo $env:JAVA_HOME
+```
+
+If `java -version` is still not found, add the bundled JDK `bin` folder to your
+user `PATH`, then reopen the terminal again:
+
+```powershell
+setx PATH "$env:PATH;C:\Program Files\Android\Android Studio\jbr\bin"
+```
+
 ## Download The Project
 
 Open a terminal and run:
@@ -165,3 +188,17 @@ npm run dev
 ```
 
 If Android commands fail, confirm that Android Studio, the Android SDK, and Java/JDK are installed and configured correctly.
+
+On Windows with Android Studio installed, set `JAVA_HOME` to:
+
+```txt
+C:\Program Files\Android\Android Studio\jbr
+```
+
+If `java` is still not found after reopening the terminal, add:
+
+```txt
+C:\Program Files\Android\Android Studio\jbr\bin
+```
+
+to the user `PATH`.
