@@ -12,7 +12,9 @@ including iPhone and iPad home-screen installs. After the first successful load,
 the service worker caches the built app shell and static assets so the web app
 can open offline. Global page overscroll is disabled so supported mobile
 browsers do not trigger pull-to-refresh or bounce-style overscroll while using
-the app.
+the app, and scrollbar chrome is hidden to keep the installed app feeling like a
+native POS surface. Mobile viewport zoom is disabled for the installed register
+experience.
 
 ## Order Screen
 

@@ -2,6 +2,9 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: manipulation;
 }
 
 html {
@@ -14,6 +17,10 @@ body {
   overscroll-behavior: none;
   overscroll-behavior-y: none;
   -webkit-overflow-scrolling: touch;
+}
+
+*::-webkit-scrollbar {
+  display: none;
 }
 
 body {
