@@ -10,7 +10,9 @@ Production web builds can be installed to a device home screen as a PWA. The
 installed app opens in standalone mode without browser UI on supported browsers,
 including iPhone and iPad home-screen installs. After the first successful load,
 the service worker caches the built app shell and static assets so the web app
-can open offline.
+can open offline. Global page overscroll is disabled so supported mobile
+browsers do not trigger pull-to-refresh or bounce-style overscroll while using
+the app.
 
 ## Order Screen
 
