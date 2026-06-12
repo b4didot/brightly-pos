@@ -9,6 +9,7 @@ Brightly POS is a local-first point-of-sale app for small food and beverage shop
 The app runs as:
 
 - A Vite React web app during local development.
+- An installable PWA in production web builds.
 - A Capacitor Android app for device packaging.
 
 The app is designed to keep daily POS operations usable even without internet. Core register data is stored locally in IndexedDB through Dexie.
@@ -17,6 +18,7 @@ The app is designed to keep daily POS operations usable even without internet. C
 
 - React with TypeScript for the UI.
 - Vite for development and production builds.
+- vite-plugin-pwa for the production web app manifest and service worker.
 - Tailwind CSS v4 through `@tailwindcss/vite`.
 - Zustand for client-side state.
 - Dexie for IndexedDB persistence.
@@ -82,6 +84,18 @@ brightly-pos-v0
 The current Dexie schema version is `13`.
 
 `ensureDatabaseSeeded()` is called during store loading to create required default rows and seed starter catalog data when the local database is empty.
+
+## PWA Architecture
+
+Production web builds use `vite-plugin-pwa` to generate the web app manifest and
+service worker.
+
+The manifest names the app `Brightly POS`, uses standalone display mode, and
+declares install icons from `public/`.
+
+The service worker precaches the built app shell and static assets so the web app
+can load offline after a first successful production visit. POS data remains
+local in IndexedDB through Dexie.
 
 ## Checkout Architecture
 

@@ -22,11 +22,15 @@ Build the app:
 npm run build
 ```
 
+The production build also generates the PWA service worker and manifest.
+
 Run lint:
 
 ```sh
 npm run lint
 ```
+
+Linting excludes generated build output such as `dist` and `android/app/build`.
 
 Preview a production build:
 
@@ -111,6 +115,7 @@ docs/
 - `src/db/database.ts` - Dexie schema, migrations, seeding, reset.
 - `src/types/index.ts` - shared domain types.
 - `src/utils/download.ts` - web/native download abstraction.
+- `vite.config.ts` - Vite, Tailwind, React, and PWA configuration.
 
 ## Development Principles
 

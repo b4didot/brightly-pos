@@ -6,6 +6,12 @@ This document describes the features currently implemented in the app.
 
 Brightly POS opens directly into the register. There is no activation token, PIN login, role gate, sync, backup, or permission gate in the current app.
 
+Production web builds can be installed to a device home screen as a PWA. The
+installed app opens in standalone mode without browser UI on supported browsers,
+including iPhone and iPad home-screen installs. After the first successful load,
+the service worker caches the built app shell and static assets so the web app
+can open offline.
+
 ## Order Screen
 
 The order screen supports:

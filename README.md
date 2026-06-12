@@ -105,6 +105,15 @@ npm run preview
 
 The terminal will show a local URL that you can open in your browser.
 
+## Install As A Web App
+
+The production web build includes PWA support through `vite-plugin-pwa`.
+
+On supported browsers, Brightly POS can be installed to the device home screen
+and opens in standalone mode without browser UI. The app shell and built assets
+are cached by the service worker so the installed web app can load without
+internet after the first successful visit.
+
 ## Android App Setup
 
 The Android project is already included in the `android` folder.
@@ -155,6 +164,7 @@ The app uses:
 - React for the user interface
 - TypeScript for safer code
 - Vite for local development and builds
+- vite-plugin-pwa for installable offline web app support
 - Tailwind CSS for styling
 - Zustand for app state
 - Dexie and IndexedDB for local data storage
