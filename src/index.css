@@ -4,7 +4,7 @@
   box-sizing: border-box;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  touch-action: manipulation;
+  touch-action: pan-x pan-y;
 }
 
 html {
@@ -23,6 +23,10 @@ body {
   display: none;
 }
 
+.report-table-scroll {
+  touch-action: pan-x pan-y;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -35,6 +39,7 @@ button,
 input,
 select {
   font: inherit;
+  touch-action: manipulation;
 }
 
 @keyframes item-added {

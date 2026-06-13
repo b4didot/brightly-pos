@@ -1,17 +1,38 @@
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Download, FileSpreadsheet, X } from "lucide-react";
+import type { ReactNode, WheelEvent } from "react";
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { usePosStore } from "../store/usePosStore";
-import type { Transaction } from "../types";
+import type { Transaction, TransactionItem } from "../types";
 import { formatDateTime, isWithinDateRange } from "../utils/dates";
 import { downloadFile } from "../utils/download";
 import { formatPeso, formatSignedPeso, toPesoNumber } from "../utils/money";
 
+type ExportFormat = "csv" | "xlsx";
+type ReportKind = "sales-summary" | "sales-by-item" | "sales-by-category" | "sales-by-payment-type" | "discounts" | "vat";
+type ReportRow = Record<string, string | number>;
+
+const reportOptions: Array<{ id: ReportKind; label: string }> = [
+  { id: "sales-summary", label: "Sales Summary" },
+  { id: "sales-by-item", label: "Sales by Item" },
+  { id: "sales-by-category", label: "Sales by Category" },
+  { id: "sales-by-payment-type", label: "Sales by Payment Type" },
+  { id: "discounts", label: "Discounts" },
+  { id: "vat", label: "VAT" },
+];
+
 export function ReportPage() {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [draftStartDate, setDraftStartDate] = useState("");
+  const [draftEndDate, setDraftEndDate] = useState("");
+  const [selectedReport, setSelectedReport] = useState<ReportKind>("sales-summary");
   const transactions = usePosStore((state) => state.transactions);
   const transactionItems = usePosStore((state) => state.transactionItems);
+  const items = usePosStore((state) => state.items);
+  const categories = usePosStore((state) => state.categories);
   const reportStartDate = usePosStore((state) => state.reportStartDate);
   const reportEndDate = usePosStore((state) => state.reportEndDate);
   const setReportRange = usePosStore((state) => state.setReportRange);
@@ -34,79 +55,158 @@ export function ReportPage() {
       total: totals.total + transaction.totalAmount,
       cash: totals.cash + (transaction.paymentMethod === "cash" ? transaction.totalAmount : 0),
       card: totals.card + (transaction.paymentMethod === "card" ? transaction.totalAmount : 0),
+      vat: totals.vat + (transaction.vatAmount ?? 0),
     }),
-    { subtotal: 0, discounts: 0, adjustments: 0, total: 0, cash: 0, card: 0 },
+    { subtotal: 0, discounts: 0, adjustments: 0, total: 0, cash: 0, card: 0, vat: 0 },
   );
 
-  function exportRows() {
-    return filteredTransactions.map((transaction) => {
-      const items = transactionItems
-        .filter((item) => item.transactionId === transaction.id)
-        .map((item) => {
-          const addOns =
-            item.selectedAddOns.length > 0
-              ? ` + ${item.selectedAddOns.map((addOn) => addOn.name).join(" + ")}`
-              : "";
-          return `${item.quantity}x ${item.itemNameSnapshot}${addOns}`;
-        })
-        .join(", ");
-      const adjustments = transaction.adjustments
-        .map((adjustment) => `${adjustment.label}: ${formatSignedPeso(adjustment.computedAmount)}`)
-        .join(", ");
+  const selectedReportLabel = reportOptions.find((report) => report.id === selectedReport)?.label ?? "Report";
+  const dateRangeLabel = `${formatDateLabel(reportStartDate)} - ${formatDateLabel(reportEndDate)}`;
 
-      return {
-        "Transaction Number": transaction.transactionNumber,
-        "Date/Time": formatDateTime(transaction.createdAt),
-        "Payment Method": transaction.paymentMethod,
-        "Order Type": transaction.orderType === "dine-in" ? "Dine In" : "Take Out",
-        "Reference ID": transaction.referenceId,
-        Subtotal: toPesoNumber(transaction.subtotal),
-        Discount: transaction.discount
-          ? `${transaction.discount.label}: -${formatPeso(transaction.discount.computedAmount)}`
-          : "",
-        "Discount Total": toPesoNumber(transaction.discount?.computedAmount ?? 0),
-        Adjustments: adjustments,
-        "Adjustments Total": toPesoNumber(
-          transaction.adjustments.reduce((sum, adjustment) => sum + adjustment.computedAmount, 0),
-        ),
-        Total: toPesoNumber(transaction.totalAmount),
-        "VAT Enabled": transaction.vatEnabled ? "Yes" : "No",
-        "VAT Percentage": transaction.vatPercentage ?? 0,
-        "VAT Inclusive": transaction.vatInclusive ? "Yes" : "No",
-        "VATable Sales": toPesoNumber(transaction.vatableSales ?? 0),
-        "VAT Amount": toPesoNumber(transaction.vatAmount ?? 0),
-        "Payment Amount": toPesoNumber(transaction.paymentAmount),
-        Change: toPesoNumber(transaction.changeAmount),
-        Items: items,
-      };
-    });
+  function transactionItemsFor(transactionId: string) {
+    return transactionItems.filter((item) => item.transactionId === transactionId);
   }
 
-  async function exportCsv() {
-    const rows = exportRows();
-    const headers = Object.keys(
-      rows[0] ?? {
-        "Transaction Number": "",
-        "Date/Time": "",
-        "Payment Method": "",
-        "Order Type": "",
-        "Reference ID": "",
+  function buildReportRows(reportKind: ReportKind): ReportRow[] {
+    if (reportKind === "sales-summary") {
+      return [
+        {
+          "Start Date": reportStartDate,
+          "End Date": reportEndDate,
+          Transactions: filteredTransactions.length,
+          Subtotal: toPesoNumber(reportTotals.subtotal),
+          Discounts: toPesoNumber(reportTotals.discounts),
+          Adjustments: toPesoNumber(reportTotals.adjustments),
+          "Total Sales": toPesoNumber(reportTotals.total),
+          Cash: toPesoNumber(reportTotals.cash),
+          Card: toPesoNumber(reportTotals.card),
+          VAT: toPesoNumber(reportTotals.vat),
+        },
+      ];
+    }
+
+    if (reportKind === "sales-by-item") {
+      const rows = new Map<string, { quantity: number; total: number }>();
+      filteredTransactions.forEach((transaction) => {
+        transactionItemsFor(transaction.id).forEach((item) => {
+          const key = item.itemNameSnapshot;
+          const current = rows.get(key) ?? { quantity: 0, total: 0 };
+          rows.set(key, {
+            quantity: current.quantity + item.quantity,
+            total: current.total + item.lineTotal,
+          });
+        });
+      });
+
+      return [...rows.entries()].map(([itemName, row]) => ({
+        Item: itemName,
+        Quantity: row.quantity,
+        Total: toPesoNumber(row.total),
+      }));
+    }
+
+    if (reportKind === "sales-by-category") {
+      const itemCategoryNames = new Map(
+        items.map((item) => [
+          item.id,
+          categories.find((category) => category.id === item.categoryId)?.name ?? "Uncategorized",
+        ]),
+      );
+      const rows = new Map<string, { quantity: number; total: number }>();
+      filteredTransactions.forEach((transaction) => {
+        transactionItemsFor(transaction.id).forEach((item) => {
+          const key = itemCategoryNames.get(item.itemId) ?? "Uncategorized";
+          const current = rows.get(key) ?? { quantity: 0, total: 0 };
+          rows.set(key, {
+            quantity: current.quantity + item.quantity,
+            total: current.total + item.lineTotal,
+          });
+        });
+      });
+
+      return [...rows.entries()].map(([category, row]) => ({
+        Category: category,
+        Quantity: row.quantity,
+        Total: toPesoNumber(row.total),
+      }));
+    }
+
+    if (reportKind === "sales-by-payment-type") {
+      return [
+        { "Payment Type": "Cash", Transactions: filteredTransactions.filter((txn) => txn.paymentMethod === "cash").length, Total: toPesoNumber(reportTotals.cash) },
+        { "Payment Type": "Card", Transactions: filteredTransactions.filter((txn) => txn.paymentMethod === "card").length, Total: toPesoNumber(reportTotals.card) },
+      ];
+    }
+
+    if (reportKind === "discounts") {
+      return filteredTransactions.map((transaction) => ({
+        "Transaction Number": transaction.transactionNumber,
+        "Date/Time": formatDateTime(transaction.createdAt),
+        Discount: transaction.discount?.label ?? "",
+        "Discount Total": toPesoNumber(transaction.discount?.computedAmount ?? 0),
+        Total: toPesoNumber(transaction.totalAmount),
+      }));
+    }
+
+    return filteredTransactions.map((transaction) => ({
+      "Transaction Number": transaction.transactionNumber,
+      "Date/Time": formatDateTime(transaction.createdAt),
+      "VAT Enabled": transaction.vatEnabled ? "Yes" : "No",
+      "VAT Percentage": transaction.vatPercentage ?? 0,
+      "VAT Inclusive": transaction.vatInclusive ? "Yes" : "No",
+      "VATable Sales": toPesoNumber(transaction.vatableSales ?? 0),
+      "VAT Amount": toPesoNumber(transaction.vatAmount ?? 0),
+      Total: toPesoNumber(transaction.totalAmount),
+    }));
+  }
+
+  function fallbackHeaders(reportKind: ReportKind) {
+    if (reportKind === "sales-summary") {
+      return {
+        "Start Date": "",
+        "End Date": "",
+        Transactions: "",
         Subtotal: "",
-        Discount: "",
-        "Discount Total": "",
+        Discounts: "",
         Adjustments: "",
-        "Adjustments Total": "",
-        Total: "",
-        "VAT Enabled": "",
-        "VAT Percentage": "",
-        "VAT Inclusive": "",
-        "VATable Sales": "",
-        "VAT Amount": "",
-        "Payment Amount": "",
-        Change: "",
-        Items: "",
-      },
-    );
+        "Total Sales": "",
+        Cash: "",
+        Card: "",
+        VAT: "",
+      };
+    }
+
+    if (reportKind === "sales-by-item") {
+      return { Item: "", Quantity: "", Total: "" };
+    }
+
+    if (reportKind === "sales-by-category") {
+      return { Category: "", Quantity: "", Total: "" };
+    }
+
+    if (reportKind === "sales-by-payment-type") {
+      return { "Payment Type": "", Transactions: "", Total: "" };
+    }
+
+    if (reportKind === "discounts") {
+      return { "Transaction Number": "", "Date/Time": "", Discount: "", "Discount Total": "", Total: "" };
+    }
+
+    return {
+      "Transaction Number": "",
+      "Date/Time": "",
+      "VAT Enabled": "",
+      "VAT Percentage": "",
+      "VAT Inclusive": "",
+      "VATable Sales": "",
+      "VAT Amount": "",
+      Total: "",
+    };
+  }
+
+  async function exportCsv(reportKind: ReportKind) {
+    const rows = buildReportRows(reportKind);
+    const headers = Object.keys(rows[0] ?? fallbackHeaders(reportKind));
     const csv = [
       headers.join(","),
       ...rows.map((row) =>
@@ -121,18 +221,19 @@ export function ReportPage() {
 
     await exportReport({
       data: csv,
-      filename: `brightly-report-${reportStartDate}-to-${reportEndDate}.csv`,
+      filename: reportFilename(reportKind, "csv"),
       mimeType: "text/csv",
     });
   }
 
-  async function exportXlsx() {
-    const sheet = XLSX.utils.json_to_sheet(exportRows());
+  async function exportXlsx(reportKind: ReportKind) {
+    const rows = buildReportRows(reportKind);
+    const sheet = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [fallbackHeaders(reportKind)]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, "Transactions");
+    XLSX.utils.book_append_sheet(workbook, sheet, selectedReportLabel.slice(0, 31));
     await exportReport({
       data: XLSX.write(workbook, { bookType: "xlsx", type: "base64" }),
-      filename: `brightly-report-${reportStartDate}-to-${reportEndDate}.xlsx`,
+      filename: reportFilename(reportKind, "xlsx"),
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       encoding: "base64",
     });
@@ -152,65 +253,96 @@ export function ReportPage() {
     }
   }
 
+  function reportFilename(reportKind: ReportKind, format: ExportFormat) {
+    return `brightly-${reportKind}-${reportStartDate}-to-${reportEndDate}.${format}`;
+  }
+
+  function openDateModal() {
+    setDraftStartDate(reportStartDate);
+    setDraftEndDate(reportEndDate);
+    setIsDateModalOpen(true);
+  }
+
+  function applyDateRange() {
+    setReportRange(draftStartDate, draftEndDate);
+    setIsDateModalOpen(false);
+  }
+
+  async function generateReport(format: ExportFormat) {
+    if (format === "csv") {
+      await exportCsv(selectedReport);
+    } else {
+      await exportXlsx(selectedReport);
+    }
+    setIsReportModalOpen(false);
+  }
+
+  function scrollTransactionTable(event: WheelEvent<HTMLDivElement>) {
+    const target = event.currentTarget;
+
+    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || target.scrollWidth <= target.clientWidth) {
+      return;
+    }
+
+    const nextScrollLeft = target.scrollLeft + event.deltaY;
+    const maxScrollLeft = target.scrollWidth - target.clientWidth;
+    const canScrollLeft = event.deltaY < 0 && target.scrollLeft > 0;
+    const canScrollRight = event.deltaY > 0 && target.scrollLeft < maxScrollLeft;
+
+    if (canScrollLeft || canScrollRight) {
+      event.preventDefault();
+      target.scrollLeft = Math.max(0, Math.min(maxScrollLeft, nextScrollLeft));
+    }
+  }
+
   return (
     <section className="mx-auto max-w-7xl px-4 py-4">
-      <div className="mb-4 grid gap-3 rounded-lg border border-stone-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_auto_auto]">
-        <label className="text-sm font-semibold text-stone-700">
-          Start date
-          <input
-            type="date"
-            value={reportStartDate}
-            onChange={(event) => setReportRange(event.target.value, reportEndDate)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-3 outline-none focus:border-amber-700"
-          />
-        </label>
-        <label className="text-sm font-semibold text-stone-700">
-          End date
-          <input
-            type="date"
-            value={reportEndDate}
-            onChange={(event) => setReportRange(reportStartDate, event.target.value)}
-            className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-3 outline-none focus:border-amber-700"
-          />
-        </label>
-        <button
-          type="button"
-          disabled={filteredTransactions.length === 0 || isExporting}
-          onClick={exportCsv}
-          className="mt-auto min-h-12 rounded-lg border border-stone-300 px-4 font-bold disabled:cursor-not-allowed disabled:text-stone-300"
-        >
-          CSV
-        </button>
-        <button
-          type="button"
-          disabled={filteredTransactions.length === 0 || isExporting}
-          onClick={exportXlsx}
-          className="mt-auto min-h-12 rounded-lg bg-stone-950 px-4 font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-300"
-        >
-          XLSX
-        </button>
+      <div className="relative mb-4 flex h-16 items-center justify-center rounded-lg border border-stone-200 bg-white p-2 shadow-sm">
+        <div className="flex flex-nowrap items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={openDateModal}
+            className="inline-flex h-11 w-48 shrink-0 items-center justify-center gap-2 rounded-lg border border-stone-200 px-3 text-center text-sm font-semibold text-stone-800 sm:w-56 sm:text-base"
+          >
+            <CalendarDays size={18} className="shrink-0 text-stone-600" />
+            <span className="whitespace-nowrap">{dateRangeLabel}</span>
+          </button>
+          <button
+            type="button"
+            disabled={filteredTransactions.length === 0 || isExporting}
+            onClick={() => setIsReportModalOpen(true)}
+            className="inline-flex h-11 w-28 shrink-0 items-center justify-center gap-2 rounded-lg bg-stone-950 px-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-300 sm:w-32 sm:text-base"
+          >
+            <Download size={18} />
+            Reports
+          </button>
+        </div>
         {exportStatus ? (
-          <p className="text-sm font-semibold text-stone-600 md:col-span-4" role="status">
+          <p className="absolute inset-x-3 bottom-1 h-4 truncate text-center text-xs font-semibold leading-4 text-stone-600" role="status">
             {exportStatus}
           </p>
         ) : null}
       </div>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <Metric label="Transactions" value={String(filteredTransactions.length)} />
-        <Metric label="Subtotal" value={formatPeso(reportTotals.subtotal)} />
-        <Metric label="Discounts" value={`-${formatPeso(reportTotals.discounts)}`} />
-        <Metric label="Adjustments" value={formatSignedPeso(reportTotals.adjustments)} />
+      <div className="mb-4 grid gap-3 md:grid-cols-2">
+        <HeroMetric label="Total Transactions" value={String(filteredTransactions.length)} />
+        <HeroMetric label="Total Sales" value={formatPeso(reportTotals.total)} />
+      </div>
+
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <Metric label="Cash" value={formatPeso(reportTotals.cash)} />
         <Metric label="Card" value={formatPeso(reportTotals.card)} />
+        <Metric label="Discounts" value={`-${formatPeso(reportTotals.discounts)}`} />
+        <Metric label="VAT" value={formatPeso(reportTotals.vat)} />
+        <Metric label="Adjustments" value={formatSignedPeso(reportTotals.adjustments)} />
       </div>
 
       <div className="overflow-hidden rounded-lg border border-stone-200 bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b border-stone-200 px-4 py-3">
-          <CalendarDays size={20} className="text-amber-800" />
+          <CalendarDays size={20} className="text-stone-600" />
           <h2 className="font-bold">Transactions</h2>
         </div>
-        <div className="overflow-x-auto">
+        <div className="report-table-scroll overflow-x-auto pb-2" onWheel={scrollTransactionTable}>
           <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="bg-stone-50 text-xs uppercase tracking-[0.12em] text-stone-500">
               <tr>
@@ -244,7 +376,98 @@ export function ReportPage() {
           </table>
         </div>
       </div>
+
+      {isDateModalOpen ? (
+        <Modal title="Date Range" onClose={() => setIsDateModalOpen(false)}>
+          <div className="grid gap-3">
+            <label className="text-sm font-semibold text-stone-700">
+              Start date
+              <input
+                type="date"
+                value={draftStartDate}
+                onChange={(event) => setDraftStartDate(event.target.value)}
+                className="mt-1 min-h-12 w-full rounded-lg border border-stone-300 px-3 outline-none focus:border-amber-700"
+              />
+            </label>
+            <label className="text-sm font-semibold text-stone-700">
+              End date
+              <input
+                type="date"
+                value={draftEndDate}
+                onChange={(event) => setDraftEndDate(event.target.value)}
+                className="mt-1 min-h-12 w-full rounded-lg border border-stone-300 px-3 outline-none focus:border-amber-700"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={applyDateRange}
+              className="min-h-12 rounded-lg bg-stone-950 px-4 font-bold text-white"
+            >
+              Apply
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {isReportModalOpen ? (
+        <Modal title="Generate Report" onClose={() => setIsReportModalOpen(false)}>
+          <div className="grid gap-3">
+            <div className="grid gap-2">
+              {reportOptions.map((report) => (
+                <button
+                  key={report.id}
+                  type="button"
+                  onClick={() => setSelectedReport(report.id)}
+                  className={`flex min-h-11 items-center justify-between rounded-lg border px-3 text-left font-semibold ${
+                    selectedReport === report.id
+                      ? "border-amber-700 bg-amber-50 text-amber-900"
+                      : "border-stone-200 bg-white text-stone-700"
+                  }`}
+                >
+                  {report.label}
+                  {selectedReport === report.id ? <FileSpreadsheet size={18} /> : null}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={() => void generateReport("csv")}
+                className="min-h-12 rounded-lg border border-stone-300 px-4 font-bold disabled:cursor-not-allowed disabled:text-stone-300"
+              >
+                CSV
+              </button>
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={() => void generateReport("xlsx")}
+                className="min-h-12 rounded-lg bg-stone-950 px-4 font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-300"
+              >
+                XLSX
+              </button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </section>
+  );
+}
+
+function formatDateLabel(dateInput: string) {
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "2-digit",
+  }).format(new Date(`${dateInput}T00:00:00`));
+}
+
+function HeroMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-stone-200 bg-white p-6 shadow-sm">
+      <p className="text-sm font-semibold uppercase tracking-[0.14em] text-stone-500">{label}</p>
+      <p className="mt-3 text-4xl font-black text-stone-950">{value}</p>
+    </div>
   );
 }
 
@@ -257,11 +480,40 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function Modal({
+  children,
+  onClose,
+  title,
+}: {
+  children: ReactNode;
+  onClose: () => void;
+  title: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      <div className="w-full max-w-md rounded-lg bg-white p-4 shadow-xl">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-lg font-bold">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex size-10 items-center justify-center rounded-lg border border-stone-200 text-stone-600"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function TransactionRow({
   items,
   transaction,
 }: {
-  items: Array<{ itemNameSnapshot: string; quantity: number; selectedAddOns: Array<{ name: string }> }>;
+  items: Pick<TransactionItem, "itemNameSnapshot" | "quantity" | "selectedAddOns">[];
   transaction: Transaction;
 }) {
   const adjustmentTotal = transaction.adjustments.reduce(

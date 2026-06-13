@@ -114,18 +114,18 @@ Voided orders stay visible in tickets but are excluded from reports.
 
 The report screen supports:
 
-- Start and end date filtering.
-- Transaction count.
-- Subtotal summary.
-- Discount summary.
-- Adjustment summary.
+- Compact `mm/dd/yy` date range filtering with a modal date picker.
+- Prominent total transaction and total sales summaries.
 - Cash total.
 - Card payment total.
+- Discount summary.
+- VAT summary.
+- Adjustment summary.
 - Transaction table.
-- CSV export.
-- XLSX export.
+- Report generation for Sales Summary, Sales by Item, Sales by Category, Sales by Payment Type, Discounts, and VAT.
+- CSV and XLSX export for generated reports.
 
-Report exports include transaction details and item snapshots.
+Report exports use the selected report type and current date range.
 
 ## Settings
 

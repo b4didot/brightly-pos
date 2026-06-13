@@ -22,7 +22,7 @@ export function AppShell() {
 
   return (
     <main
-      className={`app-shell app-shell-${activeView} min-h-screen overflow-x-hidden bg-[#f7f4ef] text-stone-950`}
+      className={`app-shell app-shell-${activeView} h-dvh min-h-screen overflow-x-hidden overflow-y-auto bg-[#f7f4ef] text-stone-950`}
     >
       <header
         className="app-header sticky top-0 z-20 border-b border-stone-200 px-3 py-3 backdrop-blur sm:px-4"
