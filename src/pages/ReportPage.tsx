@@ -1,6 +1,6 @@
 import { CalendarDays, Download, FileSpreadsheet, X } from "lucide-react";
 import type { ReactNode, WheelEvent } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { usePosStore } from "../store/usePosStore";
 import type { Transaction, TransactionItem } from "../types";
@@ -9,10 +9,18 @@ import { downloadFile } from "../utils/download";
 import { formatPeso, formatSignedPeso, toPesoNumber } from "../utils/money";
 
 type ExportFormat = "csv" | "xlsx";
-type ReportKind = "sales-summary" | "sales-by-item" | "sales-by-category" | "sales-by-payment-type" | "discounts" | "vat";
+type ReportKind =
+  | "transaction-report"
+  | "sales-summary"
+  | "sales-by-item"
+  | "sales-by-category"
+  | "sales-by-payment-type"
+  | "discounts"
+  | "vat";
 type ReportRow = Record<string, string | number>;
 
 const reportOptions: Array<{ id: ReportKind; label: string }> = [
+  { id: "transaction-report", label: "Transaction Report" },
   { id: "sales-summary", label: "Sales Summary" },
   { id: "sales-by-item", label: "Sales by Item" },
   { id: "sales-by-category", label: "Sales by Category" },
@@ -22,13 +30,18 @@ const reportOptions: Array<{ id: ReportKind; label: string }> = [
 ];
 
 export function ReportPage() {
-  const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isDateModalOpen, setIsDateModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [draftStartDate, setDraftStartDate] = useState("");
   const [draftEndDate, setDraftEndDate] = useState("");
-  const [selectedReport, setSelectedReport] = useState<ReportKind>("sales-summary");
+  const [selectedReport, setSelectedReport] = useState<ReportKind>("transaction-report");
+  const [toast, setToast] = useState<{ message: string; show: boolean; tone: "success" | "error" }>({
+    message: "",
+    show: false,
+    tone: "success",
+  });
+  const toastTimerRef = useRef<number | null>(null);
   const transactions = usePosStore((state) => state.transactions);
   const transactionItems = usePosStore((state) => state.transactionItems);
   const items = usePosStore((state) => state.items);
@@ -36,15 +49,18 @@ export function ReportPage() {
   const reportStartDate = usePosStore((state) => state.reportStartDate);
   const reportEndDate = usePosStore((state) => state.reportEndDate);
   const setReportRange = usePosStore((state) => state.setReportRange);
-  const filteredTransactions = useMemo(() => {
+  const transactionsInRange = useMemo(() => {
     const startDate = reportStartDate <= reportEndDate ? reportStartDate : reportEndDate;
     const endDate = reportStartDate <= reportEndDate ? reportEndDate : reportStartDate;
 
-    return transactions.filter(
-      (transaction) =>
-        !transaction.isVoided && isWithinDateRange(transaction.createdAt, startDate, endDate),
+    return transactions.filter((transaction) =>
+      isWithinDateRange(transaction.createdAt, startDate, endDate),
     );
   }, [reportEndDate, reportStartDate, transactions]);
+  const filteredTransactions = useMemo(
+    () => transactionsInRange.filter((transaction) => !transaction.isVoided),
+    [transactionsInRange],
+  );
   const reportTotals = filteredTransactions.reduce(
     (totals, transaction) => ({
       subtotal: totals.subtotal + transaction.subtotal,
@@ -59,15 +75,67 @@ export function ReportPage() {
     }),
     { subtotal: 0, discounts: 0, adjustments: 0, total: 0, cash: 0, card: 0, vat: 0 },
   );
+  const netSales = reportTotals.total - reportTotals.discounts - reportTotals.adjustments - reportTotals.vat;
 
   const selectedReportLabel = reportOptions.find((report) => report.id === selectedReport)?.label ?? "Report";
   const dateRangeLabel = `${formatDateLabel(reportStartDate)} - ${formatDateLabel(reportEndDate)}`;
+
+  function showToast(message: string, tone: "success" | "error" = "success") {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+
+    setToast({ message, show: true, tone });
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast({ message: "", show: false, tone: "success" });
+    }, 2400);
+  }
 
   function transactionItemsFor(transactionId: string) {
     return transactionItems.filter((item) => item.transactionId === transactionId);
   }
 
+  function transactionItemSummary(transactionId: string) {
+    return transactionItemsFor(transactionId)
+      .map((item) => {
+        const addOns =
+          item.selectedAddOns.length > 0
+            ? ` + ${item.selectedAddOns.map((addOn) => addOn.name).join(" + ")}`
+            : "";
+        return `${item.quantity}x ${item.itemNameSnapshot}${addOns}`;
+      })
+      .join(", ");
+  }
+
   function buildReportRows(reportKind: ReportKind): ReportRow[] {
+    if (reportKind === "transaction-report") {
+      return transactionsInRange.map((transaction) => ({
+        "Transaction Number": transaction.transactionNumber,
+        "Date/Time": formatDateTime(transaction.createdAt),
+        "Transaction Status": transaction.isVoided ? "Voided" : "Completed",
+        "Void Reason": transaction.voidReason ?? "",
+        "Payment Method": transaction.paymentMethod,
+        "Order Type": transaction.orderType === "dine-in" ? "Dine In" : "Take Out",
+        "Reference ID": transaction.referenceId,
+        Subtotal: toPesoNumber(transaction.subtotal),
+        Discount: transaction.discount
+          ? `${transaction.discount.label}: -${formatPeso(transaction.discount.computedAmount)}`
+          : "",
+        "Discount Total": toPesoNumber(transaction.discount?.computedAmount ?? 0),
+        Adjustments: transaction.adjustments
+          .map((adjustment) => `${adjustment.label}: ${formatSignedPeso(adjustment.computedAmount)}`)
+          .join(", "),
+        "Adjustments Total": toPesoNumber(
+          transaction.adjustments.reduce((sum, adjustment) => sum + adjustment.computedAmount, 0),
+        ),
+        "VAT Amount": toPesoNumber(transaction.vatAmount),
+        Total: toPesoNumber(transaction.totalAmount),
+        "Payment Amount": toPesoNumber(transaction.paymentAmount),
+        Change: toPesoNumber(transaction.changeAmount),
+        Items: transactionItemSummary(transaction.id),
+      }));
+    }
+
     if (reportKind === "sales-summary") {
       return [
         {
@@ -77,7 +145,7 @@ export function ReportPage() {
           Subtotal: toPesoNumber(reportTotals.subtotal),
           Discounts: toPesoNumber(reportTotals.discounts),
           Adjustments: toPesoNumber(reportTotals.adjustments),
-          "Total Sales": toPesoNumber(reportTotals.total),
+          "Net Sales": toPesoNumber(netSales),
           Cash: toPesoNumber(reportTotals.cash),
           Card: toPesoNumber(reportTotals.card),
           VAT: toPesoNumber(reportTotals.vat),
@@ -161,6 +229,28 @@ export function ReportPage() {
   }
 
   function fallbackHeaders(reportKind: ReportKind) {
+    if (reportKind === "transaction-report") {
+      return {
+        "Transaction Number": "",
+        "Date/Time": "",
+        "Transaction Status": "",
+        "Void Reason": "",
+        "Payment Method": "",
+        "Order Type": "",
+        "Reference ID": "",
+        Subtotal: "",
+        Discount: "",
+        "Discount Total": "",
+        Adjustments: "",
+        "Adjustments Total": "",
+        "VAT Amount": "",
+        Total: "",
+        "Payment Amount": "",
+        Change: "",
+        Items: "",
+      };
+    }
+
     if (reportKind === "sales-summary") {
       return {
         "Start Date": "",
@@ -169,7 +259,7 @@ export function ReportPage() {
         Subtotal: "",
         Discounts: "",
         Adjustments: "",
-        "Total Sales": "",
+        "Net Sales": "",
         Cash: "",
         Card: "",
         VAT: "",
@@ -242,12 +332,11 @@ export function ReportPage() {
   async function exportReport(input: Parameters<typeof downloadFile>[0]) {
     try {
       setIsExporting(true);
-      setExportStatus("Preparing report...");
       await downloadFile(input);
-      setExportStatus(`Saved to Downloads/Brightly POS/${input.filename}.`);
+      showToast(`Saved ${input.filename}`);
     } catch (error) {
       console.error(error);
-      setExportStatus("Could not export the report. Please try again.");
+      showToast("Could not export the report. Please try again.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -309,7 +398,7 @@ export function ReportPage() {
           </button>
           <button
             type="button"
-            disabled={filteredTransactions.length === 0 || isExporting}
+            disabled={transactionsInRange.length === 0 || isExporting}
             onClick={() => setIsReportModalOpen(true)}
             className="inline-flex h-11 w-28 shrink-0 items-center justify-center gap-2 rounded-lg bg-stone-950 px-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-300 sm:w-32 sm:text-base"
           >
@@ -317,16 +406,11 @@ export function ReportPage() {
             Reports
           </button>
         </div>
-        {exportStatus ? (
-          <p className="absolute inset-x-3 bottom-1 h-4 truncate text-center text-xs font-semibold leading-4 text-stone-600" role="status">
-            {exportStatus}
-          </p>
-        ) : null}
       </div>
 
       <div className="mb-4 grid gap-3 md:grid-cols-2">
         <HeroMetric label="Total Transactions" value={String(filteredTransactions.length)} />
-        <HeroMetric label="Total Sales" value={formatPeso(reportTotals.total)} />
+        <HeroMetric label="Net Sales" value={formatPeso(netSales)} />
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -343,7 +427,7 @@ export function ReportPage() {
           <h2 className="font-bold">Transactions</h2>
         </div>
         <div className="report-table-scroll overflow-x-auto pb-2" onWheel={scrollTransactionTable}>
-          <table className="w-full min-w-[920px] text-left text-sm">
+          <table className="w-full min-w-[1020px] text-left text-sm">
             <thead className="bg-stone-50 text-xs uppercase tracking-[0.12em] text-stone-500">
               <tr>
                 <th className="px-4 py-3">Number</th>
@@ -353,13 +437,14 @@ export function ReportPage() {
                 <th className="px-4 py-3">Subtotal</th>
                 <th className="px-4 py-3">Discount</th>
                 <th className="px-4 py-3">Adjustments</th>
+                <th className="px-4 py-3">VAT</th>
                 <th className="px-4 py-3">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-stone-500">
+                  <td colSpan={9} className="px-4 py-10 text-center text-stone-500">
                     No transactions in this date range
                   </td>
                 </tr>
@@ -449,6 +534,17 @@ export function ReportPage() {
             </div>
           </div>
         </Modal>
+      ) : null}
+
+      {toast.show ? (
+        <div
+          className={`fixed bottom-20 right-4 z-50 max-w-[calc(100vw-2rem)] rounded-lg px-4 py-2 text-sm font-bold text-white shadow-lg md:bottom-4 ${
+            toast.tone === "success" ? "bg-emerald-600" : "bg-red-600"
+          }`}
+          role="status"
+        >
+          {toast.message}
+        </div>
       ) : null}
     </section>
   );
@@ -555,6 +651,7 @@ function TransactionRow({
         {transaction.discount ? `-${formatPeso(transaction.discount.computedAmount)}` : formatPeso(0)}
       </td>
       <td className="px-4 py-3">{formatSignedPeso(adjustmentTotal)}</td>
+      <td className="px-4 py-3">{formatPeso(transaction.vatAmount)}</td>
       <td className="px-4 py-3 font-bold">{formatPeso(transaction.totalAmount)}</td>
     </tr>
   );

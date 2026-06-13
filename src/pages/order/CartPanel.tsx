@@ -1,4 +1,4 @@
-import { BadgePercent, Banknote, CreditCard, Minus, Plus, Trash2, X } from "lucide-react";
+import { Banknote, CreditCard, Minus, Plus, Trash2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { CartSheet } from "../../components/CartSheet";
 import type { CartSheetState } from "../../components/CartSheet";
@@ -48,9 +48,7 @@ export function CartPanel({
   vatBreakdown,
   orderType,
   onOpenPaymentModal,
-  onOpenDiscountModal,
   onRequestRemoveLine,
-  onClearDiscount,
   onSetOrderType,
   onToggleCart,
 }: {
@@ -61,9 +59,7 @@ export function CartPanel({
   vatBreakdown: VatBreakdown;
   orderType: OrderType;
   onOpenPaymentModal: (method: PaymentMethod) => void;
-  onOpenDiscountModal: () => void;
   onRequestRemoveLine: (item: Item) => void;
-  onClearDiscount: () => void;
   onSetOrderType: (orderType: OrderType) => void;
   onToggleCart: () => void;
 }) {
@@ -190,31 +186,6 @@ export function CartPanel({
             <span className={`${isHalfSheet ? "text-xl" : "text-2xl"} font-bold`}>{formatPeso(totals.total)}</span>
           </div>
         </div>
-
-        {settings.discountEnabled && (
-          <div className={`${isHalfSheet ? "mt-1.5 gap-1.5" : "mt-3 gap-2"} grid grid-cols-[1fr_auto]`}>
-            <button
-              type="button"
-              disabled={cartRows.length === 0}
-              onClick={onOpenDiscountModal}
-              className={`flex items-center justify-center rounded-lg border border-stone-300 font-bold text-stone-700 transition hover:border-amber-700 hover:bg-amber-50 hover:text-amber-800 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 ${
-                isHalfSheet ? "min-h-9 gap-1.5 px-2 text-xs" : "min-h-11 gap-2 px-3 text-sm"
-              }`}
-            >
-              <BadgePercent size={isHalfSheet ? 15 : 17} />
-              {totals.appliedDiscount ? "Change Discount" : "Discount"}
-            </button>
-            <button
-              type="button"
-              disabled={!totals.appliedDiscount}
-              onClick={onClearDiscount}
-              className={`${isHalfSheet ? "h-9 w-9" : "h-11 w-11"} grid place-items-center rounded-lg border border-stone-300 text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300`}
-              aria-label="Clear discount"
-            >
-              <X size={isHalfSheet ? 15 : 17} />
-            </button>
-          </div>
-        )}
 
         <div className={`${isHalfSheet ? "mt-2" : "mt-3"} grid grid-cols-2 gap-2`}>
           <PaymentButton

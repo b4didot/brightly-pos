@@ -29,7 +29,7 @@ The order screen supports:
 - Cart totals.
 - Cash checkout.
 - Online checkout.
-- Discount application.
+- Discount application from the payment review modal.
 - Inclusive VAT display.
 
 Items with variants, modifiers, or add-ons open a customization modal before being added to cart.
@@ -53,7 +53,7 @@ Discounts can be:
 - Created as reusable templates in settings.
 - Percentage-based.
 - Flat amount.
-- Applied to the cart before checkout.
+- Applied after a payment method is selected, from the payment review modal.
 
 Discounts are computed against subtotal and cannot reduce the cart below zero.
 
@@ -108,24 +108,26 @@ Users can:
 - Mark transactions as served.
 - Void transactions with a required reason.
 
-Voided orders stay visible in tickets but are excluded from reports.
+Voided orders stay visible in tickets and the Transaction Report export, but are excluded from on-screen report totals and summary reports.
 
 ## Reports
 
 The report screen supports:
 
 - Compact `mm/dd/yy` date range filtering with a modal date picker.
-- Prominent total transaction and total sales summaries.
+- Prominent total transaction and net sales summaries.
 - Cash total.
 - Card payment total.
 - Discount summary.
 - VAT summary.
 - Adjustment summary.
-- Transaction table.
-- Report generation for Sales Summary, Sales by Item, Sales by Category, Sales by Payment Type, Discounts, and VAT.
+- Transaction table showing completed transactions only, including VAT per transaction.
+- Report generation for Transaction Report, Sales Summary, Sales by Item, Sales by Category, Sales by Payment Type, Discounts, and VAT.
 - CSV and XLSX export for generated reports.
+- Toast feedback after report export succeeds or fails.
 
-Report exports use the selected report type and current date range.
+Report exports use the selected report type and current date range. Sales Summary exports include net sales as total collected minus discounts, adjustments, and VAT.
+The Transaction Report export is a complete audit record for the date range and includes completed and voided transactions, VAT amount per transaction, transaction status, and void reason when applicable.
 
 ## Settings
 

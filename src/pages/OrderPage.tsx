@@ -151,6 +151,27 @@ export function OrderPage() {
     setNotice("");
   }
 
+  function setPaymentModalTotals(nextTotals: CartTotals) {
+    setModalTotals(nextTotals);
+    setModalTotal(nextTotals.total);
+  }
+
+  function handleApplyDiscount(discount: AppliedDiscount) {
+    applyCartDiscount(discount);
+
+    if (paymentModal) {
+      setPaymentModalTotals(calculateCartTotals(cart, items, adjustments, discount));
+    }
+  }
+
+  function handleClearDiscount() {
+    clearCartDiscount();
+
+    if (paymentModal) {
+      setPaymentModalTotals(calculateCartTotals(cart, items, adjustments, null));
+    }
+  }
+
   function confirmRemoveCartLine() {
     if (!cartLinePendingRemoval) {
       return;
@@ -252,9 +273,7 @@ export function OrderPage() {
         vatBreakdown={vatBreakdown}
         orderType={pendingOrderType}
         onOpenPaymentModal={openPaymentModal}
-        onOpenDiscountModal={() => setDiscountModalOpen(true)}
         onRequestRemoveLine={setCartLinePendingRemoval}
-        onClearDiscount={clearCartDiscount}
         onSetOrderType={setPendingOrderType}
         onToggleCart={() =>
           setCartSheetState((current) => (current === "minimized" ? "half" : current === "half" ? "full" : "minimized"))
@@ -273,6 +292,7 @@ export function OrderPage() {
           cashChange={cashChange}
           cashReceived={cashReceived}
           cashStep={cashStep}
+          discountsEnabled={settings.discountEnabled}
           error={error}
           method={paymentModal}
           modalTotal={modalTotal}
@@ -280,11 +300,13 @@ export function OrderPage() {
           notice={notice}
           referenceId={referenceId}
           vatBreakdown={modalVatBreakdown}
+          onClearDiscount={handleClearDiscount}
           onClose={closePaymentModal}
           onConfirmPaymentReview={confirmPaymentReview}
           onCompleteCardPayment={() => void completeCardPayment()}
           onCompleteCashPayment={() => void completeCashPayment()}
           onComputeCashChange={computeCashChange}
+          onOpenDiscountModal={() => setDiscountModalOpen(true)}
           onMoveToCardConfirmation={moveToCardConfirmation}
           onReferenceIdChange={setReferenceId}
           onCashReceivedChange={setCashReceived}
@@ -293,11 +315,11 @@ export function OrderPage() {
 
       {discountModalOpen && (
         <DiscountModal
-          currentDiscount={totals.appliedDiscount}
+          currentDiscount={paymentModal ? modalTotals.appliedDiscount : totals.appliedDiscount}
           discountTemplates={discountTemplates}
-          subtotal={totals.subtotal}
-          onApplyDiscount={(discount: AppliedDiscount) => applyCartDiscount(discount)}
-          onClearDiscount={clearCartDiscount}
+          subtotal={paymentModal ? modalTotals.subtotal : totals.subtotal}
+          onApplyDiscount={handleApplyDiscount}
+          onClearDiscount={handleClearDiscount}
           onClose={() => setDiscountModalOpen(false)}
         />
       )}

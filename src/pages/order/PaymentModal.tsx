@@ -1,4 +1,4 @@
-import { Banknote, Check, CreditCard } from "lucide-react";
+import { BadgePercent, Banknote, Check, CreditCard, X } from "lucide-react";
 import type { CardStep, CashStep } from "../OrderPage";
 import type { CartTotals, PaymentMethod } from "../../types";
 import type { VatBreakdown } from "../../utils/vat";
@@ -10,6 +10,7 @@ export function PaymentModal({
   cashChange,
   cashReceived,
   cashStep,
+  discountsEnabled,
   error,
   method,
   modalTotal,
@@ -18,11 +19,13 @@ export function PaymentModal({
   referenceId,
   vatBreakdown,
   onCashReceivedChange,
+  onClearDiscount,
   onClose,
   onCompleteCardPayment,
   onCompleteCashPayment,
   onConfirmPaymentReview,
   onComputeCashChange,
+  onOpenDiscountModal,
   onMoveToCardConfirmation,
   onReferenceIdChange,
 }: {
@@ -30,6 +33,7 @@ export function PaymentModal({
   cashChange: number;
   cashReceived: string;
   cashStep: CashStep;
+  discountsEnabled: boolean;
   error: string;
   method: PaymentMethod;
   modalTotal: number;
@@ -38,11 +42,13 @@ export function PaymentModal({
   referenceId: string;
   vatBreakdown: VatBreakdown;
   onCashReceivedChange: (value: string) => void;
+  onClearDiscount: () => void;
   onClose: () => void;
   onCompleteCardPayment: () => void;
   onCompleteCashPayment: () => void;
   onConfirmPaymentReview: () => void;
   onComputeCashChange: () => void;
+  onOpenDiscountModal: () => void;
   onMoveToCardConfirmation: () => void;
   onReferenceIdChange: (value: string) => void;
 }) {
@@ -73,6 +79,27 @@ export function PaymentModal({
               <SummaryLine label="Total" value={formatPeso(modalTotal)} />
             </div>
           </div>
+          {discountsEnabled && (
+            <div className="grid grid-cols-[1fr_auto] gap-2">
+              <button
+                type="button"
+                onClick={onOpenDiscountModal}
+                className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-stone-300 px-3 text-sm font-bold text-stone-700 transition hover:border-amber-700 hover:bg-amber-50 hover:text-amber-800"
+              >
+                <BadgePercent size={17} />
+                {modalTotals.appliedDiscount ? "Change Discount" : "Add Discount"}
+              </button>
+              <button
+                type="button"
+                disabled={!modalTotals.appliedDiscount}
+                onClick={onClearDiscount}
+                className="grid h-11 w-11 place-items-center rounded-lg border border-stone-300 text-stone-600 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300"
+                aria-label="Clear discount"
+              >
+                <X size={17} />
+              </button>
+            </div>
+          )}
           {error && <ErrorNotice message={error} />}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <button type="button" onClick={onClose} className="min-h-11 rounded-lg border border-stone-300 px-4 font-bold text-stone-700 transition hover:bg-stone-50">
