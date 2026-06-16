@@ -4,14 +4,18 @@ This document describes the features currently implemented in the app.
 
 ## App Access
 
-Brightly POS requires device registration before the POS register opens. An unregistered device shows only the registration screen.
+Brightly POS opens at the public landing page. The landing page introduces the app and has a Get Started button for owner login or account creation.
 
-The owner portal is available through hash routes:
+The main web routes are:
 
-- `#/owner/register`
-- `#/owner/login`
-- `#/dashboard`
-- `#/device/setup`
+- `/`
+- `/dashboard`
+- `/owner/register`
+- `/owner/login`
+- `/device/setup`
+- `/pos`
+
+The POS route requires device registration before the register opens. An unregistered POS device shows the PWA device setup flow.
 
 The owner portal calls backend APIs when `VITE_BRIGHTLY_API_URL` is configured. Without that API URL, it uses a local development fallback to create owner accounts and generate single-use device registration tokens.
 

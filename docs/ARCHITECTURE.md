@@ -36,13 +36,14 @@ High-level flow:
 2. `AppShell` renders the header navigation.
 3. `AppShell` renders the active view.
 
-`App.tsx` owns a small hash-route split:
+`App.tsx` owns a small path-route split, with hash-route aliases retained for older links:
 
-- `#/owner/register` - owner portal registration.
-- `#/owner/login` - owner portal login.
-- `#/dashboard` - owner dashboard placeholder and device token generation.
-- `#/device/setup` - PWA device setup, installation guidance, and activation.
-- default route - POS device route.
+- `/` - public landing page with Get Started.
+- `/dashboard` - owner login, registration entry, dashboard, and device token generation.
+- `/owner/register` - direct owner registration entry.
+- `/owner/login` - direct owner login entry.
+- `/device/setup` - PWA device setup, installation guidance, and activation.
+- `/pos` - POS device route.
 
 The POS route loads local Dexie state, then blocks on the PWA device setup flow until the local `deviceRegistration` singleton has `registrationStatus = "registered"`. A registered device opens the POS directly even if the setup URL is opened again.
 
@@ -117,11 +118,11 @@ The first-time setup flow is documented in `docs/IMPLEMENTATION_PLAN.md`. The ow
 
 Current implementation:
 
-1. Owner creates/logs into the owner portal at `brightlyph.com/pos`.
+1. Owner opens the landing page at `brightlyph.com` and clicks Get Started.
 2. Owner creates a shop and opens the dashboard.
 3. Owner uses Add Device to generate a single-use device token that is valid for 30 days.
 4. The dashboard shows the token, the PWA setup URL, and a QR code pointing to the same setup URL.
-5. The target device opens the PWA setup route, currently `#/device/setup`.
+5. The target device opens the PWA setup route, currently `/device/setup`.
 6. The PWA setup flow asks for Android Phone or Tablet, or iPhone or iPad, then shows matching home-screen installation steps.
 7. Token entry happens inside the PWA setup flow after installation guidance.
 8. The setup page submits the token through the registration service boundary.

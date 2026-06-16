@@ -83,7 +83,9 @@ After the command runs, the terminal will show a local URL, usually:
 http://localhost:5173
 ```
 
-Open that URL in your browser.
+Open that URL in your browser. The root URL shows the public landing page.
+Use `/dashboard` for owner login or account creation, `/device/setup` for PWA
+device setup, and `/pos` for the registered POS app.
 
 ## Optional Backend API
 

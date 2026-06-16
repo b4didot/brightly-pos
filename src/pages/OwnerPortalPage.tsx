@@ -26,7 +26,7 @@ export function OwnerPortalPage({ initialMode }: { initialMode: OwnerPortalMode 
       void logoutOwner();
       setSession(null);
       setMode("owner-login");
-      window.location.hash = "#/owner/login";
+      window.history.pushState(null, "", "/dashboard");
     }} />;
   }
 
@@ -34,20 +34,20 @@ export function OwnerPortalPage({ initialMode }: { initialMode: OwnerPortalMode 
     return <OwnerRegisterForm onComplete={(nextSession) => {
       setSession(nextSession);
       setMode("dashboard");
-      window.location.hash = "#/dashboard";
+      window.history.pushState(null, "", "/dashboard");
     }} onSwitchToLogin={() => {
       setMode("owner-login");
-      window.location.hash = "#/owner/login";
+      window.history.pushState(null, "", "/dashboard");
     }} />;
   }
 
   return <OwnerLoginForm onComplete={(nextSession) => {
     setSession(nextSession);
     setMode("dashboard");
-    window.location.hash = "#/dashboard";
+    window.history.pushState(null, "", "/dashboard");
   }} onSwitchToRegister={() => {
     setMode("owner-register");
-    window.location.hash = "#/owner/register";
+    window.history.pushState(null, "", "/owner/register");
   }} />;
 }
 
@@ -173,7 +173,7 @@ function OwnerDashboard({ session, onLogout }: { session: OwnerSession; onLogout
             <p className="text-sm text-stone-600">{session.ownerName} / {session.email}</p>
           </div>
           <div className="flex gap-2">
-            <a href="#/" className="grid min-h-11 place-items-center rounded-lg border border-stone-300 px-4 text-sm font-bold">
+            <a href="/pos" className="grid min-h-11 place-items-center rounded-lg border border-stone-300 px-4 text-sm font-bold">
               POS
             </a>
             <button type="button" onClick={onLogout} className="flex min-h-11 items-center gap-2 rounded-lg bg-stone-950 px-4 text-sm font-bold text-white">
@@ -305,7 +305,7 @@ function SetupQrCode({ value }: { value: string }) {
 
 function createDeviceSetupUrl() {
   const baseUrl = `${window.location.origin}${window.location.pathname}`;
-  return `${baseUrl}#/device/setup`;
+  return `${baseUrl.replace(/\/dashboard\/?$/, "")}/device/setup`;
 }
 
 function createLegacyTokenExpiry(createdAt: string) {

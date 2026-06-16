@@ -18,7 +18,7 @@ code.
 
 ### Owner Side
 
-The owner visits `brightlyph.com/pos`, registers with email and password, and
+The owner visits `brightlyph.com`, clicks Get Started, registers with email and password, and
 creates a shop with the shop name and required business details. After the shop
 is created, the owner lands on the dashboard.
 
@@ -27,7 +27,7 @@ single-use activation token for the shop. The token is valid for 30 days. The
 Add Device screen shows exactly three activation aids:
 
 - The activation token.
-- The PWA setup URL, such as `brightlyph.com/pos#/device/setup`.
+- The PWA setup URL, such as `brightlyph.com/device/setup`.
 - A QR code pointing to the same setup URL.
 
 The dashboard instruction is: open this address on your device and use the

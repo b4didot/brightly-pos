@@ -55,7 +55,7 @@ export function DeviceRegistrationPage() {
     try {
       await registerDevice(token);
       await load();
-      window.location.hash = "#/";
+      window.location.href = "/pos";
     } catch (registrationError) {
       setError(registrationError instanceof Error ? registrationError.message : "Registration failed.");
     } finally {
