@@ -44,8 +44,6 @@ export function ReportPage() {
   const toastTimerRef = useRef<number | null>(null);
   const transactions = usePosStore((state) => state.transactions);
   const transactionItems = usePosStore((state) => state.transactionItems);
-  const items = usePosStore((state) => state.items);
-  const categories = usePosStore((state) => state.categories);
   const reportStartDate = usePosStore((state) => state.reportStartDate);
   const reportEndDate = usePosStore((state) => state.reportEndDate);
   const setReportRange = usePosStore((state) => state.setReportRange);
@@ -174,16 +172,10 @@ export function ReportPage() {
     }
 
     if (reportKind === "sales-by-category") {
-      const itemCategoryNames = new Map(
-        items.map((item) => [
-          item.id,
-          categories.find((category) => category.id === item.categoryId)?.name ?? "Uncategorized",
-        ]),
-      );
       const rows = new Map<string, { quantity: number; total: number }>();
       filteredTransactions.forEach((transaction) => {
         transactionItemsFor(transaction.id).forEach((item) => {
-          const key = itemCategoryNames.get(item.itemId) ?? "Uncategorized";
+          const key = item.categoryNameSnapshot;
           const current = rows.get(key) ?? { quantity: 0, total: 0 };
           rows.set(key, {
             quantity: current.quantity + item.quantity,

@@ -1,8 +1,19 @@
 import { create } from "zustand";
 import { seedCategories, seedItems } from "../constants/catalog";
-import { db, defaultShopSettings, ensureDatabaseSeeded, resetDatabase } from "../db/database";
+import {
+  db,
+  defaultDeviceRegistration,
+  defaultShopSettings,
+  defaultSyncState,
+  ensureDatabaseSeeded,
+  resetDatabase,
+} from "../db/database";
+import { consumeRegistrationToken } from "../services/ownerPortal";
+import { createSettingsExport, importSettingsExport } from "../services/settingsTransfer";
+import { uploadSyncOutbox } from "../services/syncClient";
 import { calculateCartTotals } from "../utils/cart";
-import { compactDateKey, toDateInputValue } from "../utils/dates";
+import { toDateInputValue } from "../utils/dates";
+import { downloadFile } from "../utils/download";
 import { createId } from "../utils/id";
 import { calculateInclusiveVat, defaultVatSettings } from "../utils/vat";
 import type {
@@ -10,6 +21,7 @@ import type {
   AppliedDiscount,
   CartLine,
   Category,
+  DeviceRegistration,
   DiscountTemplate,
   Item,
   ItemAddOn,
@@ -21,6 +33,8 @@ import type {
   SelectedModifier,
   SelectedAddOn,
   Settings,
+  SyncOutboxEntry,
+  SyncState,
   Transaction,
   TransactionItem,
   ViewName,
@@ -37,6 +51,9 @@ type PosState = {
   adjustments: Adjustment[];
   discountTemplates: DiscountTemplate[];
   settings: Settings;
+  deviceRegistration: DeviceRegistration;
+  syncState: SyncState;
+  syncOutbox: SyncOutboxEntry[];
   transactions: Transaction[];
   transactionItems: TransactionItem[];
   cart: CartLine[];
@@ -49,6 +66,8 @@ type PosState = {
   reportEndDate: string;
   setActiveView: (view: ViewName) => void;
   load: () => Promise<void>;
+  registerDevice: (token: string) => Promise<void>;
+  syncPendingOutbox: () => Promise<void>;
   resetLocalData: () => Promise<void>;
   setSelectedCategoryId: (categoryId: string) => void;
   setPendingOrderType: (orderType: OrderType) => void;
@@ -102,6 +121,8 @@ type PosState = {
   setDiscountsEnabled: (enabled: boolean) => Promise<void>;
   updateVatSettings: (settings: Pick<Settings, "vatEnabled" | "vatPercentage">) => Promise<void>;
   updateShopSettings: (settings: Pick<Settings, "shopName" | "primaryColor" | "secondaryColor">) => Promise<void>;
+  exportSettings: () => Promise<void>;
+  importSettings: (file: File) => Promise<void>;
   setReportRange: (startDate: string, endDate: string) => void;
 };
 
@@ -163,6 +184,9 @@ async function loadSnapshot() {
     adjustments,
     discountTemplates,
     settings,
+    deviceRegistration,
+    syncState,
+    syncOutbox,
     transactions,
     transactionItems,
     itemVariants,
@@ -176,6 +200,9 @@ async function loadSnapshot() {
       db.adjustments.orderBy("label").toArray(),
       db.discountTemplates.orderBy("label").toArray(),
       db.settings.get("main"),
+      db.deviceRegistration.get("main"),
+      db.syncState.get("main"),
+      db.syncOutbox.orderBy("createdAt").reverse().toArray(),
       db.transactions.orderBy("createdAt").reverse().toArray(),
       db.transactionItems.toArray(),
       db.itemVariants.orderBy("sortOrder").toArray(),
@@ -192,6 +219,9 @@ async function loadSnapshot() {
     adjustments,
     discountTemplates,
     settings: { ...defaultSettings, ...settings, vatInclusive: true },
+    deviceRegistration: { ...defaultDeviceRegistration, ...deviceRegistration },
+    syncState: { ...defaultSyncState, ...syncState },
+    syncOutbox,
     transactions,
     transactionItems,
     itemVariants,
@@ -212,8 +242,16 @@ function withLoadTimeout<T>(promise: Promise<T>) {
   ]);
 }
 
-async function createTransactionNumber(createdAt: Date) {
-  const key = compactDateKey(createdAt);
+function compactDisplayDateKey(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `${month}${day}${year}`;
+}
+
+async function createTransactionNumber(createdAt: Date, orderType: OrderType, deviceRegistration: DeviceRegistration) {
+  const key = compactDisplayDateKey(createdAt);
   const dayStart = new Date(createdAt);
   dayStart.setHours(0, 0, 0, 0);
 
@@ -225,7 +263,39 @@ async function createTransactionNumber(createdAt: Date) {
     .between(dayStart.toISOString(), dayEnd.toISOString(), true, true)
     .count();
 
-  return `BRT-${key}-${String(count + 1).padStart(3, "0")}`;
+  const orderPrefix = orderType === "dine-in" ? "DI" : "TO";
+  const shopCode = deviceRegistration.shopCode ?? "00";
+  const deviceCode = deviceRegistration.deviceCode ?? "00";
+
+  return `${orderPrefix}-${shopCode}${deviceCode}-${key}-${String(count + 1).padStart(4, "0")}`;
+}
+
+function requireRegisteredDevice(deviceRegistration: DeviceRegistration) {
+  if (
+    deviceRegistration.registrationStatus !== "registered" ||
+    !deviceRegistration.ownerId ||
+    !deviceRegistration.shopId ||
+    !deviceRegistration.deviceId
+  ) {
+    throw new Error("Register this device before using the POS.");
+  }
+}
+
+function createOutboxEntry(eventType: SyncOutboxEntry["eventType"], recordId: string, payload: unknown): SyncOutboxEntry {
+  const now = new Date().toISOString();
+
+  return {
+    id: createId("sync"),
+    eventType,
+    recordId,
+    payload,
+    status: "pending",
+    attempts: 0,
+    createdAt: now,
+    updatedAt: now,
+    lastError: null,
+    syncedAt: null,
+  };
 }
 
 export const usePosStore = create<PosState>((set, get) => ({
@@ -239,6 +309,9 @@ export const usePosStore = create<PosState>((set, get) => ({
   adjustments: [],
   discountTemplates: [],
   settings: defaultSettings,
+  deviceRegistration: defaultDeviceRegistration,
+  syncState: defaultSyncState,
+  syncOutbox: [],
   transactions: [],
   transactionItems: [],
   cart: [],
@@ -265,6 +338,122 @@ export const usePosStore = create<PosState>((set, get) => ({
             : "Unable to open the local register database.",
       });
     }
+  },
+  registerDevice: async (token) => {
+    const currentRegistration = await db.deviceRegistration.get("main");
+
+    if (currentRegistration?.registrationStatus === "registered") {
+      throw new Error("This device is already registered.");
+    }
+
+    const registration = await consumeRegistrationToken(token);
+    const nextRegistration: DeviceRegistration = {
+      id: "main",
+      registrationStatus: "registered",
+      ownerId: registration.ownerId,
+      ownerName: registration.ownerName,
+      businessName: registration.businessName,
+      shopId: registration.shopId,
+      shopCode: registration.shopCode,
+      deviceId: registration.deviceId,
+      deviceCode: registration.deviceCode,
+      deviceName: registration.deviceName,
+      credentialId: registration.credentialId,
+      credentialSecret: registration.credentialSecret,
+      registeredAt: registration.registeredAt,
+      lastSeenAt: registration.registeredAt,
+    };
+
+    await db.deviceRegistration.put(nextRegistration);
+    set({ ...(await loadSnapshot()) });
+  },
+  syncPendingOutbox: async () => {
+    const registration = await db.deviceRegistration.get("main");
+
+    if (
+      registration?.registrationStatus !== "registered" ||
+      !registration.deviceId ||
+      !registration.credentialId ||
+      !registration.credentialSecret
+    ) {
+      return;
+    }
+
+    if (!navigator.onLine) {
+      await db.syncState.put({ ...defaultSyncState, status: "offline" });
+      set(await loadSnapshot());
+      return;
+    }
+
+    const pendingEntries = await db.syncOutbox.where("status").equals("pending").toArray();
+    if (pendingEntries.length === 0) {
+      await db.syncState.put({
+        id: "main",
+        status: "idle",
+        lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
+        lastFailedSyncAt: null,
+        lastError: null,
+      });
+      set(await loadSnapshot());
+      return;
+    }
+
+    await db.syncState.put({
+      ...get().syncState,
+      id: "main",
+      status: "syncing",
+      lastError: null,
+    });
+    set(await loadSnapshot());
+
+    try {
+      const acknowledgement = await uploadSyncOutbox(registration, pendingEntries);
+      const acknowledgedIds = new Set(acknowledgement.acknowledgedIds);
+      const syncedAt = new Date().toISOString();
+
+      await db.transaction("rw", db.syncOutbox, db.syncState, db.deviceRegistration, async () => {
+      await Promise.all(
+        pendingEntries.filter((entry) => acknowledgedIds.has(entry.id)).map((entry) =>
+          db.syncOutbox.update(entry.id, {
+            status: "synced",
+            attempts: entry.attempts + 1,
+            updatedAt: syncedAt,
+            syncedAt,
+            lastError: null,
+          }),
+        ),
+      );
+      await db.syncState.put({
+        id: "main",
+        status: "idle",
+        lastSuccessfulSyncAt: syncedAt,
+        lastFailedSyncAt: null,
+        lastError: null,
+      });
+      await db.deviceRegistration.update("main", { lastSeenAt: syncedAt });
+      });
+    } catch (syncError) {
+      const failedAt = new Date().toISOString();
+      await db.transaction("rw", db.syncOutbox, db.syncState, async () => {
+        await Promise.all(
+          pendingEntries.map((entry) =>
+            db.syncOutbox.update(entry.id, {
+              attempts: entry.attempts + 1,
+              updatedAt: failedAt,
+              lastError: syncError instanceof Error ? syncError.message : "Sync failed.",
+            }),
+          ),
+        );
+        await db.syncState.put({
+          id: "main",
+          status: "error",
+          lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
+          lastFailedSyncAt: failedAt,
+          lastError: syncError instanceof Error ? syncError.message : "Sync failed.",
+        });
+      });
+    }
+    set(await loadSnapshot());
   },
   resetLocalData: async () => {
     set({ loading: true, loadError: "" });
@@ -413,6 +602,7 @@ export const usePosStore = create<PosState>((set, get) => ({
   clearCartDiscount: () => set({ cartDiscount: null }),
   checkout: async ({ paymentMethod, paymentAmount, referenceId, orderType, transactionId: providedTransactionId }) => {
     const state = get();
+    requireRegisteredDevice(state.deviceRegistration);
     const totals = calculateCartTotals(state.cart, state.items, state.adjustments, state.cartDiscount);
 
     if (state.cart.length === 0) {
@@ -428,8 +618,16 @@ export const usePosStore = create<PosState>((set, get) => ({
     const vatBreakdown = calculateInclusiveVat(totals.total, state.settings);
     const transaction: Transaction = {
       id: transactionId,
-      transactionNumber: await createTransactionNumber(now),
+      transactionNumber: await createTransactionNumber(now, orderType, state.deviceRegistration),
       createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+      ownerId: state.deviceRegistration.ownerId,
+      shopId: state.deviceRegistration.shopId,
+      deviceId: state.deviceRegistration.deviceId,
+      shopCodeSnapshot: state.deviceRegistration.shopCode,
+      deviceCodeSnapshot: state.deviceRegistration.deviceCode,
+      userId: state.deviceRegistration.ownerId,
+      userNameSnapshot: state.deviceRegistration.ownerName,
       orderType,
       paymentMethod,
       referenceId: referenceId.trim(),
@@ -453,6 +651,10 @@ export const usePosStore = create<PosState>((set, get) => ({
         return [];
       }
 
+      const categoryName =
+        item.categoryId === null
+          ? "Uncategorized"
+          : state.categories.find((category) => category.id === item.categoryId)?.name ?? "Uncategorized";
       const effectivePrice = line.variantPrice ?? item.price;
       const addOnsTotal = line.selectedAddOns.reduce((sum, addOn) => sum + addOn.price, 0);
 
@@ -462,6 +664,8 @@ export const usePosStore = create<PosState>((set, get) => ({
         itemId: item.id,
         itemNameSnapshot: item.name,
         itemPriceSnapshot: item.price,
+        categoryIdSnapshot: item.categoryId,
+        categoryNameSnapshot: categoryName,
         variantId: line.variantId,
         variantNameSnapshot: line.variantName,
         variantPriceSnapshot: line.variantPrice,
@@ -472,9 +676,10 @@ export const usePosStore = create<PosState>((set, get) => ({
       };
     });
 
-    await db.transaction("rw", db.transactions, db.transactionItems, async () => {
+    await db.transaction("rw", db.transactions, db.transactionItems, db.syncOutbox, async () => {
       await db.transactions.add(transaction);
       await db.transactionItems.bulkAdd(transactionItems);
+      await db.syncOutbox.add(createOutboxEntry("transaction.created", transaction.id, { transaction, transactionItems }));
     });
 
     const snapshot = await loadSnapshot();
@@ -489,7 +694,11 @@ export const usePosStore = create<PosState>((set, get) => ({
       return;
     }
 
-    await db.transactions.update(transactionId, { isServed: true });
+    const updatedAt = new Date().toISOString();
+    await db.transaction("rw", db.transactions, db.syncOutbox, async () => {
+      await db.transactions.update(transactionId, { isServed: true, updatedAt });
+      await db.syncOutbox.add(createOutboxEntry("transaction.served", transactionId, { transactionId, updatedAt }));
+    });
     set(await loadSnapshot());
   },
   voidTransaction: async (transactionId, reason) => {
@@ -500,10 +709,17 @@ export const usePosStore = create<PosState>((set, get) => ({
       return;
     }
 
-    await db.transactions.update(transactionId, {
-      isVoided: true,
-      voidReason: trimmedReason,
-      voidedAt: new Date().toISOString(),
+    const updatedAt = new Date().toISOString();
+    await db.transaction("rw", db.transactions, db.syncOutbox, async () => {
+      await db.transactions.update(transactionId, {
+        isVoided: true,
+        voidReason: trimmedReason,
+        voidedAt: updatedAt,
+        updatedAt,
+      });
+      await db.syncOutbox.add(
+        createOutboxEntry("transaction.voided", transactionId, { transactionId, reason: trimmedReason, updatedAt }),
+      );
     });
     set(await loadSnapshot());
   },
@@ -752,6 +968,19 @@ export const usePosStore = create<PosState>((set, get) => ({
 
     await db.settings.put(nextSettings);
     set({ settings: nextSettings });
+  },
+  exportSettings: async () => {
+    const payload = await createSettingsExport();
+    await downloadFile({
+      data: JSON.stringify(payload, null, 2),
+      filename: `brightly-settings-${new Date().toISOString().slice(0, 10)}.json`,
+      mimeType: "application/json",
+    });
+  },
+  importSettings: async (file) => {
+    const payload = JSON.parse(await file.text()) as unknown;
+    await importSettingsExport(payload);
+    set(await loadSnapshot());
   },
   setReportRange: (reportStartDate, reportEndDate) => {
     set({ reportStartDate, reportEndDate });

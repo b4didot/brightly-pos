@@ -16,6 +16,14 @@ Run the local dev server:
 npm run dev
 ```
 
+Optional backend integration:
+
+```sh
+VITE_BRIGHTLY_API_URL=https://your-api.example.com npm run dev
+```
+
+When `VITE_BRIGHTLY_API_URL` is unset, owner auth, device token generation, device registration, and sync upload use local development fallbacks.
+
 Build the app:
 
 ```sh
@@ -100,6 +108,7 @@ src/
   pages/
     order/
     settings/
+  services/
   store/
   types/
   utils/
@@ -109,10 +118,14 @@ docs/
 
 ## Key Files
 
-- `src/App.tsx` - app root wrapper.
+- `src/App.tsx` - app root wrapper, hash-route split, PWA device setup route, and POS registration gate.
 - `src/components/AppShell.tsx` - navigation, loading/error state, and active view rendering.
 - `src/store/usePosStore.ts` - POS data, cart, checkout, settings, and reports.
 - `src/db/database.ts` - Dexie schema, migrations, seeding, reset.
+- `src/services/apiClient.ts` - shared API base URL and JSON request helper.
+- `src/services/ownerPortal.ts` - owner portal, device token, and device registration service boundary.
+- `src/services/syncClient.ts` - device-authenticated sync upload client with local development fallback.
+- `src/services/settingsTransfer.ts` - settings export/import helpers.
 - `src/types/index.ts` - shared domain types.
 - `src/utils/download.ts` - web/native download abstraction.
 - `vite.config.ts` - Vite, Tailwind, React, and PWA configuration.

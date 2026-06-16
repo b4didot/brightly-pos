@@ -85,6 +85,20 @@ http://localhost:5173
 
 Open that URL in your browser.
 
+## Optional Backend API
+
+Owner login, device token generation, device registration, and sync upload call a backend when this Vite environment variable is configured:
+
+```sh
+VITE_BRIGHTLY_API_URL=https://your-api.example.com
+```
+
+When the variable is not set, those flows use local development fallbacks in browser storage so the app can be tested without a backend.
+
+The owner dashboard Add Device flow creates a single-use activation token valid
+for 30 days and shows the token, a PWA setup URL, and a QR code for that URL.
+The setup URL opens the Brightly POS PWA setup route on the target device.
+
 ## Build The Web App
 
 To check that the app can be built for production:
@@ -168,6 +182,7 @@ The app uses:
 - Tailwind CSS for styling
 - Zustand for app state
 - Dexie and IndexedDB for local data storage
+- QRCode for local setup QR generation
 - Capacitor for Android packaging
 - XLSX for report exports
 - lucide-react for icons

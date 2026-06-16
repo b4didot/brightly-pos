@@ -1,5 +1,4 @@
 import { BarChart3, Settings, ShoppingCart, Ticket } from "lucide-react";
-import { useEffect } from "react";
 import { usePosStore } from "../store/usePosStore";
 import { NavButton } from "./NavButton";
 import { OrderPage } from "../pages/OrderPage";
@@ -10,15 +9,7 @@ import { TicketsPage } from "../pages/TicketsPage";
 export function AppShell() {
   const activeView = usePosStore((state) => state.activeView);
   const setActiveView = usePosStore((state) => state.setActiveView);
-  const loading = usePosStore((state) => state.loading);
-  const loadError = usePosStore((state) => state.loadError);
-  const load = usePosStore((state) => state.load);
-  const resetLocalData = usePosStore((state) => state.resetLocalData);
   const settings = usePosStore((state) => state.settings);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   return (
     <main
@@ -67,46 +58,10 @@ export function AppShell() {
         </div>
       </header>
 
-      {loading ? (
-        <section className="grid min-h-[70vh] place-items-center">
-          <div className="rounded-lg border border-stone-200 bg-white px-5 py-4 shadow-sm">
-            Loading local register...
-          </div>
-        </section>
-      ) : loadError ? (
-        <section className="grid min-h-[70vh] place-items-center px-4">
-          <div className="w-full max-w-md rounded-lg border border-red-100 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-red-700">
-              Local Register Error
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-stone-950">Unable to load saved data</h2>
-            <p className="mt-2 text-sm text-stone-600">{loadError}</p>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => void load()}
-                className="min-h-11 rounded-lg border border-stone-300 px-4 font-bold"
-              >
-                Retry
-              </button>
-              <button
-                type="button"
-                onClick={() => void resetLocalData()}
-                className="min-h-11 rounded-lg bg-stone-950 px-4 font-bold text-white"
-              >
-                Reset Local Data
-              </button>
-            </div>
-          </div>
-        </section>
-      ) : (
-        <>
-          {activeView === "order" && <OrderPage />}
-          {activeView === "tickets" && <TicketsPage />}
-          {activeView === "settings" && <SettingsPage />}
-          {activeView === "report" && <ReportPage />}
-        </>
-      )}
+      {activeView === "order" && <OrderPage />}
+      {activeView === "tickets" && <TicketsPage />}
+      {activeView === "settings" && <SettingsPage />}
+      {activeView === "report" && <ReportPage />}
     </main>
   );
 }

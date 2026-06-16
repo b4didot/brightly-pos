@@ -19,7 +19,7 @@ brightly-pos-v0
 Current schema version:
 
 ```txt
-13
+15
 ```
 
 ## Tables
@@ -37,6 +37,9 @@ Current tables:
 - `modifiers`
 - `itemModifiers`
 - `itemAddOns`
+- `deviceRegistration`
+- `syncOutbox`
+- `syncState`
 
 ## Table Purpose
 
@@ -90,6 +93,18 @@ Links modifiers to items.
 
 Links add-on items to regular menu items.
 
+`deviceRegistration`
+
+Stores the singleton POS device registration state. The real `deviceId` is server-issued during token registration, not locally generated. The default row is unregistered and contains no device credentials.
+
+`syncOutbox`
+
+Stores durable local sync events created after local writes, such as transaction creation, served state, and void state.
+
+`syncState`
+
+Stores singleton sync status metadata, including last successful sync, last failed sync, and last error.
+
 ## Important Singleton Rows
 
 Settings:
@@ -98,9 +113,21 @@ Settings:
 settings.id = "main"
 ```
 
+Device registration:
+
+```txt
+deviceRegistration.id = "main"
+```
+
+Sync state:
+
+```txt
+syncState.id = "main"
+```
+
 ## Schema Indexes
 
-Current version 13 indexes:
+Current version 15 indexes:
 
 ```ts
 categories: "&id, name"
@@ -108,12 +135,15 @@ items: "&id, categoryId, name, isOutOfStock, isAddOn"
 adjustments: "&id, label, enabled"
 discountTemplates: "&id, label"
 settings: "&id"
-transactions: "&id, transactionNumber, createdAt, paymentMethod"
+transactions: "&id, transactionNumber, createdAt, paymentMethod, ownerId, shopId, deviceId"
 transactionItems: "&id, transactionId, itemId"
 itemVariants: "&id, itemId, sortOrder"
 modifiers: "&id, label"
 itemModifiers: "&id, itemId, modifierId"
 itemAddOns: "&id, itemId, addOnItemId"
+deviceRegistration: "&id, registrationStatus, ownerId, shopId, deviceId"
+syncOutbox: "&id, eventType, recordId, status, createdAt"
+syncState: "&id"
 ```
 
 ## Seeding
@@ -123,6 +153,8 @@ itemAddOns: "&id, itemId, addOnItemId"
 It ensures:
 
 - Main settings row exists.
+- Main device registration row exists with `registrationStatus = "unregistered"` if registration has not completed.
+- Main sync state row exists.
 - Seed categories exist if categories are empty.
 - Seed items exist if items are empty.
 - Seed variants, modifiers, modifier links, and add-on links exist when empty.
@@ -154,6 +186,7 @@ For that reason, `transactionItems` stores snapshots:
 
 - Item name at checkout.
 - Item price at checkout.
+- Category id and category name at checkout.
 - Variant selected at checkout.
 - Modifiers selected at checkout.
 - Add-ons selected at checkout.
@@ -167,6 +200,7 @@ Checkout creates:
 
 - One `transactions` row.
 - One or more `transactionItems` rows.
+- One `syncOutbox` row for `transaction.created`.
 
 These are written in a Dexie transaction.
 
@@ -182,8 +216,44 @@ Current mutable transaction fields are operational state:
 - `isVoided`
 - `voidReason`
 - `voidedAt`
+- `updatedAt`
 
 Voided transactions are excluded from report totals.
+
+Serving or voiding a transaction creates a sync outbox entry in the same local mutation flow.
+
+## Registration And Sync Metadata
+
+Registration metadata includes:
+
+- `registrationStatus`
+- `ownerId`
+- `ownerName`
+- `businessName`
+- `shopId`
+- `shopCode`
+- `deviceId`
+- `deviceCode`
+- `deviceName`
+- `credentialId`
+- `credentialSecret`
+- `registeredAt`
+- `lastSeenAt`
+
+New transactions snapshot:
+
+- `ownerId`
+- `shopId`
+- `deviceId`
+- `shopCodeSnapshot`
+- `deviceCodeSnapshot`
+- `userId`
+- `userNameSnapshot`
+- `updatedAt`
+
+Existing transactions from schema versions before 14 are backfilled with nullable owner/shop/device/user fields and `updatedAt = createdAt`.
+
+Existing transaction items from schema versions before 15 are best-effort backfilled with category snapshots from the current item/category records. New transaction items snapshot category data at checkout so Sales by Category does not depend on later catalog edits.
 
 ## Reset Behavior
 

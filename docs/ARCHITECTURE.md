@@ -12,7 +12,7 @@ The app runs as:
 - An installable PWA in production web builds.
 - A Capacitor Android app for device packaging.
 
-The app is designed to keep daily POS operations usable even without internet. Core register data is stored locally in IndexedDB through Dexie.
+The app requires first-time device registration before the POS shell is available. After registration, daily POS operations remain usable even without internet. Core register data is stored locally in IndexedDB through Dexie.
 
 ## Current Stack
 
@@ -36,7 +36,17 @@ High-level flow:
 2. `AppShell` renders the header navigation.
 3. `AppShell` renders the active view.
 
-There is no activation, login, PIN, role, sync, backup, or permission gate in the current app.
+`App.tsx` owns a small hash-route split:
+
+- `#/owner/register` - owner portal registration.
+- `#/owner/login` - owner portal login.
+- `#/dashboard` - owner dashboard placeholder and device token generation.
+- `#/device/setup` - PWA device setup, installation guidance, and activation.
+- default route - POS device route.
+
+The POS route loads local Dexie state, then blocks on the PWA device setup flow until the local `deviceRegistration` singleton has `registrationStatus = "registered"`. A registered device opens the POS directly even if the setup URL is opened again.
+
+The owner portal uses the service boundary in `src/services/ownerPortal.ts`. When `VITE_BRIGHTLY_API_URL` is configured, owner registration, login, token listing, token generation, and device registration call backend endpoints. Without that environment variable, the same service falls back to browser storage so development can exercise the flow without a backend.
 
 ## Main Views
 
@@ -59,6 +69,8 @@ The app currently uses one main Zustand store:
 
 - Current active view.
 - Loaded database snapshot.
+- Device registration metadata.
+- Sync state and sync outbox rows.
 - Cart state.
 - Checkout actions.
 - Tickets actions.
@@ -81,9 +93,9 @@ The database name is:
 brightly-pos-v0
 ```
 
-The current Dexie schema version is `13`.
+The current Dexie schema version is `15`.
 
-`ensureDatabaseSeeded()` is called during store loading to create required default rows and seed starter catalog data when the local database is empty.
+`ensureDatabaseSeeded()` is called during store loading to create required default rows, seed starter catalog data when the local database is empty, and create the unregistered device/sync singleton rows.
 
 ## PWA Architecture
 
@@ -96,6 +108,33 @@ declares install icons from `public/`.
 The service worker precaches the built app shell and static assets so the web app
 can load offline after a first successful production visit. POS data remains
 local in IndexedDB through Dexie.
+
+## Registration Architecture
+
+The real sync device identity is server-issued. The POS does not generate a real `deviceId` locally.
+
+The first-time setup flow is documented in `docs/IMPLEMENTATION_PLAN.md`. The owner portal and the POS device are connected only by a single-use activation token.
+
+Current implementation:
+
+1. Owner creates/logs into the owner portal at `brightlyph.com/pos`.
+2. Owner creates a shop and opens the dashboard.
+3. Owner uses Add Device to generate a single-use device token that is valid for 30 days.
+4. The dashboard shows the token, the PWA setup URL, and a QR code pointing to the same setup URL.
+5. The target device opens the PWA setup route, currently `#/device/setup`.
+6. The PWA setup flow asks for Android Phone or Tablet, or iPhone or iPad, then shows matching home-screen installation steps.
+7. Token entry happens inside the PWA setup flow after installation guidance.
+8. The setup page submits the token through the registration service boundary.
+9. The token is marked used and the POS stores returned owner/shop/device identity plus credential fields.
+10. The POS shell unlocks and loads normal local register workflows.
+
+The registration token is not stored after successful device registration. The backend path uses `POST /api/devices/register`; the development fallback burns the token in browser storage and rejects expired tokens.
+
+## Sync Architecture
+
+Checkout and ticket state changes write local data first. The same Dexie transaction creates a `syncOutbox` row for upload.
+
+`syncPendingOutbox()` runs after registration and periodically uploads pending rows through `src/services/syncClient.ts`. When `VITE_BRIGHTLY_API_URL` is configured, it sends events to `POST /api/devices/sync` using server-issued device credential headers. Without that environment variable, it locally acknowledges pending rows so the outbox lifecycle remains testable during development.
 
 ## Checkout Architecture
 
@@ -138,6 +177,7 @@ Main source folders:
 - `src/pages` - top-level app views.
 - `src/pages/order` - order flow components.
 - `src/pages/settings` - settings sections.
+- `src/services` - API client, owner portal/device registration service, sync client, and settings transfer helpers.
 - `src/store` - Zustand store.
 - `src/db` - Dexie setup and migrations.
 - `src/utils` - pure utilities and platform download helper.

@@ -16,7 +16,10 @@ import type {
   ItemAddOn,
   ItemVariant,
   Modifier,
+  DeviceRegistration,
   Settings,
+  SyncOutboxEntry,
+  SyncState,
   Transaction,
   TransactionItem,
 } from "../types";
@@ -40,6 +43,9 @@ class BrightlyDatabase extends Dexie {
   modifiers!: Table<Modifier, string>;
   itemModifiers!: Table<ItemModifier, string>;
   itemAddOns!: Table<ItemAddOn, string>;
+  deviceRegistration!: Table<DeviceRegistration, string>;
+  syncOutbox!: Table<SyncOutboxEntry, string>;
+  syncState!: Table<SyncState, string>;
 
   constructor() {
     super("brightly-pos-v0");
@@ -242,14 +248,108 @@ class BrightlyDatabase extends Dexie {
         settings.secondaryColor = settings.secondaryColor ?? defaultShopSettings.secondaryColor;
       });
     });
+
+    this.version(14).stores({
+      categories: "&id, name",
+      items: "&id, categoryId, name, isOutOfStock, isAddOn",
+      adjustments: "&id, label, enabled",
+      discountTemplates: "&id, label",
+      settings: "&id",
+      transactions: "&id, transactionNumber, createdAt, paymentMethod, ownerId, shopId, deviceId",
+      transactionItems: "&id, transactionId, itemId",
+      itemVariants: "&id, itemId, sortOrder",
+      modifiers: "&id, label",
+      itemModifiers: "&id, itemId, modifierId",
+      itemAddOns: "&id, itemId, addOnItemId",
+      deviceRegistration: "&id, registrationStatus, ownerId, shopId, deviceId",
+      syncOutbox: "&id, eventType, recordId, status, createdAt",
+      syncState: "&id",
+    }).upgrade(async (transaction) => {
+      await transaction.table<Transaction, string>("transactions").toCollection().modify((txn) => {
+        txn.updatedAt = txn.updatedAt ?? txn.createdAt;
+        txn.ownerId = txn.ownerId ?? null;
+        txn.shopId = txn.shopId ?? null;
+        txn.deviceId = txn.deviceId ?? null;
+        txn.shopCodeSnapshot = txn.shopCodeSnapshot ?? null;
+        txn.deviceCodeSnapshot = txn.deviceCodeSnapshot ?? null;
+        txn.userId = txn.userId ?? null;
+        txn.userNameSnapshot = txn.userNameSnapshot ?? null;
+      });
+    });
+
+    this.version(15).stores({
+      categories: "&id, name",
+      items: "&id, categoryId, name, isOutOfStock, isAddOn",
+      adjustments: "&id, label, enabled",
+      discountTemplates: "&id, label",
+      settings: "&id",
+      transactions: "&id, transactionNumber, createdAt, paymentMethod, ownerId, shopId, deviceId",
+      transactionItems: "&id, transactionId, itemId",
+      itemVariants: "&id, itemId, sortOrder",
+      modifiers: "&id, label",
+      itemModifiers: "&id, itemId, modifierId",
+      itemAddOns: "&id, itemId, addOnItemId",
+      deviceRegistration: "&id, registrationStatus, ownerId, shopId, deviceId",
+      syncOutbox: "&id, eventType, recordId, status, createdAt",
+      syncState: "&id",
+    }).upgrade(async (transaction) => {
+      const categories = await transaction.table<Category, string>("categories").toArray();
+      const categoryNamesById = new Map(categories.map((category) => [category.id, category.name]));
+      const items = await transaction.table<Item, string>("items").toArray();
+      const itemCategoriesById = new Map(
+        items.map((item) => [
+          item.id,
+          {
+            categoryIdSnapshot: item.categoryId,
+            categoryNameSnapshot:
+              item.categoryId === null
+                ? "Uncategorized"
+                : categoryNamesById.get(item.categoryId) ?? "Uncategorized",
+          },
+        ]),
+      );
+
+      await transaction.table<TransactionItem, string>("transactionItems").toCollection().modify((item) => {
+        const categorySnapshot = itemCategoriesById.get(item.itemId);
+        item.categoryIdSnapshot = item.categoryIdSnapshot ?? categorySnapshot?.categoryIdSnapshot ?? null;
+        item.categoryNameSnapshot = item.categoryNameSnapshot ?? categorySnapshot?.categoryNameSnapshot ?? "Uncategorized";
+      });
+    });
   }
 }
 
 export const db = new BrightlyDatabase();
 export { defaultShopSettings };
 
+export const defaultDeviceRegistration: DeviceRegistration = {
+  id: "main",
+  registrationStatus: "unregistered",
+  ownerId: null,
+  ownerName: null,
+  businessName: null,
+  shopId: null,
+  shopCode: null,
+  deviceId: null,
+  deviceCode: null,
+  deviceName: null,
+  credentialId: null,
+  credentialSecret: null,
+  registeredAt: null,
+  lastSeenAt: null,
+};
+
+export const defaultSyncState: SyncState = {
+  id: "main",
+  status: "idle",
+  lastSuccessfulSyncAt: null,
+  lastFailedSyncAt: null,
+  lastError: null,
+};
+
 export async function ensureDatabaseSeeded() {
   const settings = await db.settings.get("main");
+  const deviceRegistration = await db.deviceRegistration.get("main");
+  const syncState = await db.syncState.get("main");
 
   if (!settings) {
     await db.settings.put({
@@ -271,6 +371,14 @@ export async function ensureDatabaseSeeded() {
       vatInclusive: true,
       discountEnabled: settings.discountEnabled ?? true,
     });
+  }
+
+  if (!deviceRegistration) {
+    await db.deviceRegistration.put(defaultDeviceRegistration);
+  }
+
+  if (!syncState) {
+    await db.syncState.put(defaultSyncState);
   }
 
   const categoryCount = await db.categories.count();

@@ -4,7 +4,22 @@ This document describes the features currently implemented in the app.
 
 ## App Access
 
-Brightly POS opens directly into the register. There is no activation token, PIN login, role gate, sync, backup, or permission gate in the current app.
+Brightly POS requires device registration before the POS register opens. An unregistered device shows only the registration screen.
+
+The owner portal is available through hash routes:
+
+- `#/owner/register`
+- `#/owner/login`
+- `#/dashboard`
+- `#/device/setup`
+
+The owner portal calls backend APIs when `VITE_BRIGHTLY_API_URL` is configured. Without that API URL, it uses a local development fallback to create owner accounts and generate single-use device registration tokens.
+
+The first-time setup flow is split between the owner dashboard and the POS PWA. The owner dashboard has an Add Device workflow that generates a single-use token valid for 30 days and shows three activation aids: the token, the PWA setup URL, and a QR code for the same URL. The dashboard instruction is only to open the address on the device and use the token to activate it.
+
+The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. The first setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad. Android devices see an Install app button when the browser exposes the PWA install prompt, plus manual Add to Home Screen instructions as fallback. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. Token entry happens after those install steps inside the same PWA setup flow.
+
+A registered POS device stores server-style owner/shop/device identity and credential fields locally. After registration, the POS can continue opening and operating offline. There is no cashier login, PIN, role gate, or permission model.
 
 Production web builds can be installed to a device home screen as a PWA. The
 installed app opens in standalone mode without browser UI on supported browsers,
@@ -31,6 +46,8 @@ The order screen supports:
 - Online checkout.
 - Discount application from the payment review modal.
 - Inclusive VAT display.
+
+Completed orders use human-readable transaction numbers with order type, shop code, device code, date, and daily sequence, such as `DI-0101-06152026-0001`.
 
 Items with variants, modifiers, or add-ons open a customization modal before being added to cart.
 
@@ -128,12 +145,15 @@ The report screen supports:
 
 Report exports use the selected report type and current date range. Sales Summary exports include net sales as total collected minus discounts, adjustments, and VAT.
 The Transaction Report export is a complete audit record for the date range and includes completed and voided transactions, VAT amount per transaction, transaction status, and void reason when applicable.
+Sales by Category uses the category snapshot saved on each transaction item at checkout, so later menu/category edits do not move historical sales between categories.
 
 ## Settings
 
 Settings sections currently include:
 
 - Shop.
+- Device & Sync.
+- Settings Backup.
 - Categories.
 - Items.
 - Modifiers.
@@ -145,7 +165,11 @@ Settings sections currently include:
 
 The Shop section controls the shop name shown in the app header plus primary and secondary color customization for the header branding.
 
-Settings currently do not include admin, backup, sync, auth, token, PIN, role, or permission controls.
+The Device & Sync section shows registered owner, shop, device, last sync, and pending sync status.
+
+The Settings Backup section can export and import local configuration as JSON. Settings exports include menu and configuration data, but not transactions or device credentials. Importing settings requires confirmation and does not replace the registered device identity.
+
+Settings currently do not include cashier admin, PIN, role, or permission controls.
 
 Primary add buttons inside settings sections are full-width section actions.
 
@@ -199,6 +223,10 @@ Modifiers currently do not add price.
 On Android, reports are saved through the custom Capacitor `ReportDownloader` plugin.
 
 On web, downloads use browser file download behavior.
+
+## Sync
+
+Checkout, served, and voided transaction changes create local sync outbox entries. When `VITE_BRIGHTLY_API_URL` is configured, pending entries upload with the registered device credentials. Without that API URL, pending entries are locally acknowledged so the outbox flow can be tested during development.
 
 ## Feature Maintenance
 

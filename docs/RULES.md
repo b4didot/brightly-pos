@@ -28,13 +28,13 @@ Use this mapping:
 
 ## Architecture Rules
 
-The app is local-first. Core POS operation must not require internet.
+The app is local-first after device registration. First-time device registration requires server validation, but completed registration must allow core POS operation without internet.
 
 Checkout must remain local and reliable.
 
-Do not introduce a backend dependency into order entry, checkout, tickets, settings, or reports without updating architecture docs and explaining the tradeoff.
+Do not introduce a backend dependency into order entry, checkout, tickets, settings, or reports after registration without updating architecture docs and explaining the tradeoff.
 
-The current app has no activation, login, PIN, role, sync, backup, or permission gate.
+The current app has mandatory device registration, owner portal mock login/register pages, local settings import/export, and sync outbox scaffolding. It has no cashier login, PIN, role, or permission gate.
 
 ## State Rules
 

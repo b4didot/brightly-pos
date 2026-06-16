@@ -8,6 +8,54 @@ export type DiscountType = "percentage" | "flat";
 
 export type ViewName = "order" | "tickets" | "settings" | "report";
 
+export type RegistrationStatus = "unregistered" | "registered";
+
+export type DeviceRegistration = {
+  id: "main";
+  registrationStatus: RegistrationStatus;
+  ownerId: string | null;
+  ownerName: string | null;
+  businessName: string | null;
+  shopId: string | null;
+  shopCode: string | null;
+  deviceId: string | null;
+  deviceCode: string | null;
+  deviceName: string | null;
+  credentialId: string | null;
+  credentialSecret: string | null;
+  registeredAt: string | null;
+  lastSeenAt: string | null;
+};
+
+export type SyncStatus = "idle" | "syncing" | "offline" | "error";
+
+export type SyncState = {
+  id: "main";
+  status: SyncStatus;
+  lastSuccessfulSyncAt: string | null;
+  lastFailedSyncAt: string | null;
+  lastError: string | null;
+};
+
+export type SyncEventType =
+  | "transaction.created"
+  | "transaction.served"
+  | "transaction.voided"
+  | "settings.snapshot";
+
+export type SyncOutboxEntry = {
+  id: string;
+  eventType: SyncEventType;
+  recordId: string;
+  payload: unknown;
+  status: "pending" | "synced" | "failed";
+  attempts: number;
+  createdAt: string;
+  updatedAt: string;
+  lastError: string | null;
+  syncedAt: string | null;
+};
+
 export type Category = {
   id: string;
   name: string;
@@ -131,6 +179,14 @@ export type Transaction = {
   id: string;
   transactionNumber: string;
   createdAt: string;
+  updatedAt: string;
+  ownerId: string | null;
+  shopId: string | null;
+  deviceId: string | null;
+  shopCodeSnapshot: string | null;
+  deviceCodeSnapshot: string | null;
+  userId: string | null;
+  userNameSnapshot: string | null;
   orderType: OrderType;
   paymentMethod: PaymentMethod;
   referenceId: string;
@@ -157,6 +213,8 @@ export type TransactionItem = {
   itemId: string;
   itemNameSnapshot: string;
   itemPriceSnapshot: number;
+  categoryIdSnapshot: string | null;
+  categoryNameSnapshot: string;
   variantId: string | null;
   variantNameSnapshot: string | null;
   variantPriceSnapshot: number | null;
