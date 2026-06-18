@@ -101,6 +101,10 @@ The owner dashboard Add Device flow creates a single-use activation token valid
 for 30 days and shows the token, a PWA setup URL, and a QR code for that URL.
 The setup URL opens the Brightly POS PWA setup route on the target device.
 
+Production, Vercel, and Supabase environment variables are documented in
+`docs/ENVIRONMENT.md`.
+Supabase database and Edge Function setup is documented in `docs/SUPABASE.md`.
+
 ## Build The Web App
 
 To check that the app can be built for production:
@@ -182,6 +186,7 @@ The app uses:
 - Vite for local development and builds
 - vite-plugin-pwa for installable offline web app support
 - Tailwind CSS for styling
+- Supabase for production owner auth, device activation, and cloud sync event storage
 - Zustand for app state
 - Dexie and IndexedDB for local data storage
 - QRCode for local setup QR generation

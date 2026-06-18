@@ -10,6 +10,7 @@ import {
   loginOwner,
   logoutOwner,
   registerOwner,
+  restoreOwnerSession,
   type OwnerSession,
   type RegistrationToken,
 } from "../services/ownerPortal";
@@ -20,6 +21,24 @@ type OwnerPortalMode = "owner-register" | "owner-login" | "dashboard";
 export function OwnerPortalPage({ initialMode }: { initialMode: OwnerPortalMode }) {
   const [session, setSession] = useState<OwnerSession | null>(() => getOwnerSession());
   const [mode, setMode] = useState<OwnerPortalMode>(() => (initialMode === "dashboard" && !getOwnerSession() ? "owner-login" : initialMode));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void restoreOwnerSession()
+      .then((restoredSession) => {
+        if (cancelled || !restoredSession) return;
+        setSession(restoredSession);
+        setMode("dashboard");
+      })
+      .catch(() => {
+        if (!cancelled) setSession(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (mode === "dashboard" && session) {
     return <OwnerDashboard session={session} onLogout={() => {

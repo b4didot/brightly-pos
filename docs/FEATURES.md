@@ -17,7 +17,7 @@ The main web routes are:
 
 The POS route requires device registration before the register opens. An unregistered POS device shows the PWA device setup flow.
 
-The owner portal calls backend APIs when `VITE_BRIGHTLY_API_URL` is configured. Without that API URL, it uses a local development fallback to create owner accounts and generate single-use device registration tokens.
+The owner portal uses Supabase Auth when Supabase frontend variables are configured. Production owners must verify their email before managing dashboard devices. Without Supabase or a backend API URL, the app uses a local development fallback to create owner accounts and generate single-use device registration tokens.
 
 The first-time setup flow is split between the owner dashboard and the POS PWA. The owner dashboard has an Add Device workflow that generates a single-use token valid for 30 days and shows three activation aids: the token, the PWA setup URL, and a QR code for the same URL. The dashboard instruction is only to open the address on the device and use the token to activate it.
 
@@ -230,7 +230,7 @@ On web, downloads use browser file download behavior.
 
 ## Sync
 
-Checkout, served, and voided transaction changes create local sync outbox entries. When `VITE_BRIGHTLY_API_URL` is configured, pending entries upload with the registered device credentials. Without that API URL, pending entries are locally acknowledged so the outbox flow can be tested during development.
+Checkout, served, and voided transaction changes create local sync outbox entries. In production, pending entries upload to Supabase through the `sync-device-events` Edge Function with the registered device credentials. Without Supabase or a backend API URL, pending entries are locally acknowledged so the outbox flow can be tested during development.
 
 ## Feature Maintenance
 

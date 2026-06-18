@@ -1,0 +1,10 @@
+project_id = "brightly-pos"
+
+[functions.create-device-token]
+verify_jwt = true
+
+[functions.activate-device]
+verify_jwt = false
+
+[functions.sync-device-events]
+verify_jwt = false

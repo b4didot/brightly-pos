@@ -22,7 +22,10 @@ Optional backend integration:
 VITE_BRIGHTLY_API_URL=https://your-api.example.com npm run dev
 ```
 
-When `VITE_BRIGHTLY_API_URL` is unset, owner auth, device token generation, device registration, and sync upload use local development fallbacks.
+When Supabase variables and `VITE_BRIGHTLY_API_URL` are unset, owner auth, device token generation, device registration, and sync upload use local development fallbacks.
+
+Production and Supabase environment variables are documented in `docs/ENVIRONMENT.md`.
+Supabase schema and Edge Function setup is documented in `docs/SUPABASE.md`.
 
 Build the app:
 
@@ -124,6 +127,7 @@ docs/
 - `src/db/database.ts` - Dexie schema, migrations, seeding, reset.
 - `src/services/apiClient.ts` - shared API base URL and JSON request helper.
 - `src/services/ownerPortal.ts` - owner portal, device token, and device registration service boundary.
+- `src/services/supabaseClient.ts` - browser Supabase client and Edge Function request helper.
 - `src/services/syncClient.ts` - device-authenticated sync upload client with local development fallback.
 - `src/services/settingsTransfer.ts` - settings export/import helpers.
 - `src/types/index.ts` - shared domain types.

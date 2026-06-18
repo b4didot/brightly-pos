@@ -22,6 +22,7 @@ The app requires first-time device registration before the POS shell is availabl
 - Tailwind CSS v4 through `@tailwindcss/vite`.
 - Zustand for client-side state.
 - Dexie for IndexedDB persistence.
+- Supabase for production owner authentication, shop/device registry, activation tokens, and cloud sync event storage.
 - Capacitor for Android packaging.
 - XLSX for spreadsheet report exports.
 - lucide-react for icons.
@@ -47,7 +48,7 @@ High-level flow:
 
 The POS route loads local Dexie state, then blocks on the PWA device setup flow until the local `deviceRegistration` singleton has `registrationStatus = "registered"`. A registered device opens the POS directly even if the setup URL is opened again.
 
-The owner portal uses the service boundary in `src/services/ownerPortal.ts`. When `VITE_BRIGHTLY_API_URL` is configured, owner registration, login, token listing, token generation, and device registration call backend endpoints. Without that environment variable, the same service falls back to browser storage so development can exercise the flow without a backend.
+The owner portal uses the service boundary in `src/services/ownerPortal.ts`. When Supabase frontend variables are configured, owner registration, login, token listing, token generation, and device registration use Supabase Auth, Supabase tables, and Edge Functions. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy backend API. Without either remote option, the same service falls back to browser storage so development can exercise the flow without a backend.
 
 ## Main Views
 
@@ -135,7 +136,7 @@ The registration token is not stored after successful device registration. The b
 
 Checkout and ticket state changes write local data first. The same Dexie transaction creates a `syncOutbox` row for upload.
 
-`syncPendingOutbox()` runs after registration and periodically uploads pending rows through `src/services/syncClient.ts`. When `VITE_BRIGHTLY_API_URL` is configured, it sends events to `POST /api/devices/sync` using server-issued device credential headers. Without that environment variable, it locally acknowledges pending rows so the outbox lifecycle remains testable during development.
+`syncPendingOutbox()` runs after registration and periodically uploads pending rows through `src/services/syncClient.ts`. When Supabase is configured, it sends events to the `sync-device-events` Edge Function using server-issued device credential headers. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy API. Without either remote option, pending entries are locally acknowledged so the outbox lifecycle remains testable during development.
 
 ## Checkout Architecture
 

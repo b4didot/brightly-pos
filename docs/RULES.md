@@ -22,6 +22,8 @@ Use this mapping:
 - Root `README.md` for setup, dependencies, and run/build instructions.
 - `docs/ARCHITECTURE.md` for architecture and ownership.
 - `docs/DATABASE.md` for Dexie schema, migrations, tables, and persisted data.
+- `docs/ENVIRONMENT.md` for production, Vercel, Supabase, and secret configuration.
+- `docs/SUPABASE.md` for Supabase schema, Edge Functions, and cloud sync setup.
 - `docs/FEATURES.md` for user-facing behavior.
 - `docs/DEVELOPMENT.md` for workflow and implementation conventions.
 - `docs/RULES.md` for these rules.
