@@ -1,6 +1,6 @@
 import { CheckCircle2, KeyRound, Menu, MonitorDown, Share, Smartphone, Store } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePosStore } from "../store/usePosStore";
 import { isInstalledPwa } from "../utils/pwa";
 
@@ -15,6 +15,8 @@ export function DeviceRegistrationPage() {
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useTokenizedManifest(urlToken);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -143,6 +145,62 @@ export function DeviceRegistrationPage() {
 function getUrlToken() {
   const token = new URLSearchParams(window.location.search).get("t");
   return token?.trim().toUpperCase() ?? "";
+}
+
+function useTokenizedManifest(urlToken: string) {
+  useEffect(() => {
+    if (!urlToken || isInstalledPwa()) return;
+
+    const existingManifest = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const originalHref = existingManifest?.href;
+    const manifestLink = existingManifest ?? document.createElement("link");
+    const tokenizedStartUrl = `${window.location.pathname}${window.location.search}`;
+    const manifest = {
+      name: "Brightly POS",
+      short_name: "Brightly POS",
+      description: "Local-first point-of-sale for small food and beverage shops.",
+      theme_color: "#d97706",
+      background_color: "#f7f4ef",
+      display: "standalone",
+      orientation: "any",
+      scope: "/",
+      start_url: tokenizedStartUrl,
+      icons: [
+        {
+          src: "/pwa-192x192.png",
+          sizes: "192x192",
+          type: "image/png",
+        },
+        {
+          src: "/pwa-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+        },
+        {
+          src: "/pwa-512x512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "maskable",
+        },
+      ],
+    };
+    const manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
+
+    manifestLink.rel = "manifest";
+    manifestLink.href = manifestUrl;
+    manifestLink.dataset.tokenizedSetupManifest = "true";
+    if (!existingManifest) document.head.appendChild(manifestLink);
+
+    return () => {
+      URL.revokeObjectURL(manifestUrl);
+      if (existingManifest && originalHref) {
+        existingManifest.href = originalHref;
+        delete existingManifest.dataset.tokenizedSetupManifest;
+      } else {
+        manifestLink.remove();
+      }
+    };
+  }, [urlToken]);
 }
 
 function DeviceTypeButton({

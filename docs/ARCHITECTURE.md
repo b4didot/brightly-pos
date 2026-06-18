@@ -105,12 +105,14 @@ Production web builds use `vite-plugin-pwa` to generate the web app manifest and
 service worker.
 
 The manifest names the app `Brightly POS`, uses standalone display mode, and
-declares install icons from `public/`. It does not force a fixed `start_url`,
-so first-time installs from `/device/setup?t=TOKEN` can reopen the same
-tokenized setup URL inside the installed PWA. If an installed PWA is launched
-at `/` from an older home-screen shortcut, the app detects standalone display
-mode and routes into the POS setup/registration gate instead of the public
-landing page.
+declares install icons from `public/`. It does not force a fixed `start_url`.
+When `/device/setup?t=TOKEN` is opened in browser mode, the device setup page
+temporarily points the manifest link at a tokenized manifest whose `start_url`
+is the current setup URL. This lets first-time installs reopen the tokenized
+setup URL inside the installed PWA without saving the token locally. If an
+installed PWA is launched at `/` from an older home-screen shortcut, the app
+detects standalone display mode and routes into the POS setup/registration gate
+instead of the public landing page.
 
 The service worker precaches the built app shell and static assets so the web app
 can load offline after a first successful production visit. POS data remains
