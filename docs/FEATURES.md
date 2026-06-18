@@ -4,7 +4,7 @@ This document describes the features currently implemented in the app.
 
 ## App Access
 
-Brightly POS opens at the public landing page in a normal browser tab. The landing page introduces the app and has a Get Started button for owner login or account creation. When launched from an installed PWA icon, Brightly POS opens the POS device route instead of the public landing page.
+Brightly POS opens at the public landing page in a normal browser tab. The landing page introduces the app and has a Get Started button for owner login or account creation. When launched from an installed PWA icon, Brightly POS opens through the POS setup/registration gate instead of the public landing page.
 
 The main web routes are:
 
@@ -21,7 +21,7 @@ The owner portal uses Supabase Auth when Supabase frontend variables are configu
 
 The first-time setup flow is split between the owner dashboard and the POS PWA. The owner dashboard has an Add Device workflow that generates a single-use token valid for 30 days and shows three activation aids: the token, the PWA setup URL with the token in the `t` query parameter, and a QR code for that same tokenized URL. Activation tokens remain visible in the dashboard because they are single-use and burn after activation. The dashboard instruction is only to open the address on the device and use the token to activate it.
 
-The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. In browser mode, the setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad, then shows manual home-screen installation instructions. Android instructions direct the owner to the browser three-dot menu, Add to Home screen, then Install. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. If the installed PWA opens `/device/setup?t=TOKEN`, the page shows an Activate Device button and burns that URL token only after the owner taps activate. If no token is present in the installed PWA URL, manual token entry remains available. New PWA installs start at `/pos`; if an already-installed PWA opens `/`, the app detects standalone mode and routes into the POS setup/registration gate.
+The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. In browser mode, the setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad, then shows manual home-screen installation instructions. Android instructions direct the owner to the browser three-dot menu, Add to Home screen, then Install. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. The PWA manifest does not force a fixed start URL, so first-time installs from `/device/setup?t=TOKEN` can reopen that same tokenized setup URL in the installed PWA. If the installed PWA opens `/device/setup?t=TOKEN`, the page shows an Activate Device button and burns that URL token only after the owner taps activate. If no token is present in the installed PWA URL, manual token entry remains available.
 
 A registered POS device stores server-style owner/shop/device identity and credential fields locally. After registration, the installed PWA can continue opening and operating offline. There is no cashier login, PIN, role gate, or permission model.
 
