@@ -27,8 +27,9 @@ single-use activation token for the shop. The token is valid for 30 days. The
 Add Device screen shows exactly three activation aids:
 
 - The activation token.
-- The PWA setup URL, such as `brightlyph.com/device/setup`.
-- A QR code pointing to the same setup URL.
+- The PWA setup URL with the token embedded, such as
+  `brightlyph.com/device/setup?t=TOKEN`.
+- A QR code pointing to the same tokenized setup URL.
 
 The dashboard instruction is: open this address on your device and use the
 token below to activate it. The dashboard must not include Android, iOS, iPadOS,
@@ -52,13 +53,16 @@ home-screen installation steps:
   Home Screen or Install app through the browser menu as fallback.
 - iPhone and iPad use Safari Share, then Add to Home Screen.
 
-After installation guidance, token entry is shown only after the owner opens
-Brightly POS from the installed PWA.
-The owner enters the token. The device sends the token to the server through
-the registration service boundary. The server validates the token, burns it
+After installation guidance, activation is shown only after the owner opens the
+tokenized setup URL from the installed PWA. If the installed PWA is opened at
+`/device/setup?t=TOKEN`, it shows an Activate Device button. The token is not
+stored locally before activation; it is read from the current URL. When the
+owner activates, the device sends the token to the server through the
+registration service boundary. The server validates the token, burns it
 immediately, links the device to the owner and shop, and returns the device id
 and device credentials. The PWA stores the returned owner, shop, device, and
-credential fields locally.
+credential fields locally. If no token is present in the installed PWA URL,
+manual token entry remains available as a fallback.
 
 From that point forward, every launch on the registered device opens directly
 to the POS. Setup, token entry, and registration screens do not appear again
@@ -85,12 +89,15 @@ setup flow.
 ### Acceptance Tests
 
 - Add Device creates a single-use token with a 30-day expiration.
-- The setup URL and QR code point to the same PWA setup route.
+- The setup URL and QR code point to the same tokenized PWA setup route.
 - The dashboard contains no platform-specific PWA installation instructions.
 - The PWA setup route opens inside the Brightly POS app.
 - Android selection shows Android-specific home-screen install steps.
 - iPhone or iPad selection shows Safari Share and Add to Home Screen steps.
-- Token entry is part of the PWA setup flow after install guidance.
+- Tokenized setup links show an Activate Device button only in the installed
+  PWA.
+- Manual token entry remains available when the installed PWA setup URL has no
+  token.
 - A valid token activates the device and opens the POS.
 - A used or expired token cannot activate a device.
 - A registered device opens the POS directly on future launches.

@@ -154,7 +154,6 @@ function OwnerDashboard({ session, onLogout }: { session: OwnerSession; onLogout
   const [tokenError, setTokenError] = useState("");
   const [loadingTokens, setLoadingTokens] = useState(true);
   const [creatingToken, setCreatingToken] = useState(false);
-  const setupUrl = createDeviceSetupUrl();
   const activeTokens = useMemo(
     () => tokens.filter((token) => token.status === "active" && !isTokenExpired(token)),
     [tokens],
@@ -268,12 +267,12 @@ function OwnerDashboard({ session, onLogout }: { session: OwnerSession; onLogout
                         </div>
                         <div>
                           <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-500">Setup URL</p>
-                          <p className="break-all font-mono text-sm text-stone-700">{setupUrl}</p>
+                          <p className="break-all font-mono text-sm text-stone-700">{createDeviceSetupUrl(token.token)}</p>
                         </div>
                         <p className="text-sm text-stone-600">{token.deviceName} / Device {token.deviceCode}</p>
                       </div>
                       <div className="flex flex-row items-center gap-3 sm:flex-col sm:items-end">
-                        <SetupQrCode value={setupUrl} />
+                        <SetupQrCode value={createDeviceSetupUrl(token.token)} />
                         <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold uppercase ${token.status === "active" && !isTokenExpired(token) ? "bg-emerald-50 text-emerald-700" : "bg-stone-100 text-stone-600"}`}>
                           {token.status === "active" && isTokenExpired(token) ? "expired" : token.status}
                         </span>
@@ -322,9 +321,10 @@ function SetupQrCode({ value }: { value: string }) {
   return <img src={dataUrl} alt="Device setup QR code" className="h-[132px] w-[132px] rounded-lg border border-stone-200 bg-white p-2" />;
 }
 
-function createDeviceSetupUrl() {
+function createDeviceSetupUrl(token: string) {
   const baseUrl = `${window.location.origin}${window.location.pathname}`;
-  return `${baseUrl.replace(/\/dashboard\/?$/, "")}/device/setup`;
+  const setupUrl = `${baseUrl.replace(/\/dashboard\/?$/, "")}/device/setup`;
+  return `${setupUrl}?t=${encodeURIComponent(token)}`;
 }
 
 function createLegacyTokenExpiry(createdAt: string) {

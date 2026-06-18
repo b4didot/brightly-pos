@@ -11,17 +11,26 @@ export function DeviceRegistrationPage() {
   const load = usePosStore((state) => state.load);
   const [deviceType, setDeviceType] = useState<DeviceType | null>(null);
   const installedPwa = isInstalledPwa();
+  const urlToken = getUrlToken();
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await activateDevice(token);
+  }
+
+  async function handleEmbeddedTokenActivation() {
+    await activateDevice(urlToken);
+  }
+
+  async function activateDevice(activationToken: string) {
     setError("");
     setSubmitting(true);
 
     try {
-      await registerDevice(token);
+      await registerDevice(activationToken);
       await load();
       window.location.href = "/pos";
     } catch (registrationError) {
@@ -68,7 +77,31 @@ export function DeviceRegistrationPage() {
         </div>
         )}
 
-        {installedPwa && (
+        {installedPwa && urlToken && (
+          <div className="mt-5 space-y-4">
+            <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-4">
+              <p className="text-sm font-bold text-emerald-800">Activation link detected</p>
+              <p className="mt-2 font-mono text-lg font-bold text-stone-950">{urlToken}</p>
+              <p className="mt-2 text-sm text-emerald-900">
+                Tap activate to register this installed POS device to the shop.
+              </p>
+            </div>
+
+            {error && <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</p>}
+
+            <button
+              type="button"
+              onClick={() => void handleEmbeddedTokenActivation()}
+              disabled={submitting}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 font-bold text-white disabled:cursor-not-allowed disabled:bg-stone-300"
+            >
+              <KeyRound size={18} />
+              {submitting ? "Activating..." : "Activate Device"}
+            </button>
+          </div>
+        )}
+
+        {installedPwa && !urlToken && (
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
           <label className="block">
             <span className="text-sm font-bold text-stone-800">Registration token</span>
@@ -97,12 +130,19 @@ export function DeviceRegistrationPage() {
 
         <div className="mt-4 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">
           {installedPwa
-            ? "Enter the token from the owner dashboard to activate this installed POS device."
-            : "After adding Brightly POS to your home screen, open it from the home screen to enter your activation token."}
+            ? urlToken
+              ? "The activation token came from the setup link. It will be burned after successful activation."
+              : "Enter the token from the owner dashboard to activate this installed POS device."
+            : "After adding Brightly POS to your home screen, open the installed app from this same setup link to activate the device."}
         </div>
       </section>
     </main>
   );
+}
+
+function getUrlToken() {
+  const token = new URLSearchParams(window.location.search).get("t");
+  return token?.trim().toUpperCase() ?? "";
 }
 
 function DeviceTypeButton({
