@@ -29,7 +29,8 @@ It creates:
 
 - `owner_profiles`
 - `shops`
-- `device_activation_tokens`
+- `device_activation_tokens`, including a hashed token for validation and a
+  display token for the owner dashboard
 - `devices`
 - `sync_events`
 

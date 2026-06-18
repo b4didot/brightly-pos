@@ -227,14 +227,14 @@ export async function listRegistrationTokens(session: OwnerSession) {
   if (hasSupabaseConfig() && session.accessToken) {
     const { data, error } = await getSupabaseClient()
       .from("device_activation_tokens")
-      .select("device_code, device_name, status, created_at, expires_at, used_at")
+      .select("display_token, device_code, device_name, status, created_at, expires_at, used_at")
       .eq("shop_id", session.shopId)
       .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);
 
     return (data ?? []).map((token) => ({
-      token: token.status === "active" ? "Generated token hidden" : "Token used",
+      token: token.display_token || "Token unavailable",
       ownerId: session.ownerId,
       ownerName: session.ownerName,
       businessName: session.businessName,

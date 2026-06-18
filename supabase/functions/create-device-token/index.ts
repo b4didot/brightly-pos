@@ -56,19 +56,20 @@ Deno.serve(async (request) => {
         shop_id: shopId,
         owner_id: userResult.user.id,
         token_hash: await sha256Hex(token),
+        display_token: token,
         device_code: deviceCode,
         device_name: body.deviceName?.trim() || `Register ${deviceCode}`,
         status: "active",
         created_at: createdAt.toISOString(),
         expires_at: expiresAt.toISOString(),
       })
-      .select("device_code, device_name, status, created_at, expires_at, used_at")
+      .select("display_token, device_code, device_name, status, created_at, expires_at, used_at")
       .single();
 
     if (insertError) throw insertError;
 
     return jsonResponse({
-      token,
+      token: insertedToken.display_token,
       ownerId: userResult.user.id,
       shopId,
       deviceCode: insertedToken.device_code,
