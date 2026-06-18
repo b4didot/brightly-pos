@@ -183,7 +183,7 @@ function OwnerDashboard({ session, onLogout }: { session: OwnerSession; onLogout
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f4ef] px-4 py-5 text-stone-950">
+    <main className="public-scroll-page bg-[#f7f4ef] px-4 py-5 text-stone-950">
       <section className="mx-auto w-full max-w-5xl space-y-4">
         <header className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -335,7 +335,7 @@ function createLegacyTokenExpiry(createdAt: string) {
 
 function OwnerAuthLayout({ children, eyebrow, title }: { children: ReactNode; eyebrow: string; title: string }) {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#f7f4ef] px-4 py-8 text-stone-950">
+    <main className="public-scroll-page grid place-items-center bg-[#f7f4ef] px-4 py-8 text-stone-950">
       <section className="w-full max-w-md rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-lg bg-amber-50 text-amber-800">

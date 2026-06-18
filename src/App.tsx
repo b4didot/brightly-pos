@@ -84,7 +84,7 @@ function RegisteredPos({ syncPendingOutbox }: { syncPendingOutbox: () => Promise
 
 function LandingPage() {
   return (
-    <main className="min-h-screen bg-[#f7f4ef] text-stone-950">
+    <main className="public-scroll-page bg-[#f7f4ef] text-stone-950">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5">
         <a href="/" className="text-lg font-black tracking-tight">
           Brightly POS

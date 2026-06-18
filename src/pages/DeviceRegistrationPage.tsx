@@ -1,4 +1,4 @@
-import { CheckCircle2, Download, KeyRound, MonitorDown, Share, Smartphone, Store } from "lucide-react";
+import { CheckCircle2, Download, KeyRound, Menu, MonitorDown, Share, Smartphone, Store } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePosStore } from "../store/usePosStore";
@@ -33,7 +33,7 @@ export function DeviceRegistrationPage() {
 
   async function handleInstallApp() {
     if (!installPrompt) {
-      setInstallPromptStatus("If the install prompt is not available, use the browser menu and choose Add to Home screen or Install app.");
+      setInstallPromptStatus("The browser has not made the install prompt available yet. Use the browser menu and choose Add to Home screen or Install app.");
       return;
     }
 
@@ -64,7 +64,7 @@ export function DeviceRegistrationPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f7f4ef] px-4 py-8 text-stone-950">
+    <main className="public-scroll-page bg-[#f7f4ef] px-4 py-8 text-stone-950">
       <section className="mx-auto w-full max-w-2xl rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-lg bg-amber-50 text-amber-800">
@@ -180,9 +180,9 @@ function InstallSteps({
 }) {
   const steps = deviceType === "android"
     ? [
-        "Tap Install app when the browser makes the prompt available.",
-        "If no prompt appears, open the browser menu.",
-        "Choose Add to Home screen or Install app.",
+        "If the Install app button appears below, tap it.",
+        "If no install button appears, open the browser menu.",
+        "Choose Add to Home screen or Install app from that menu.",
         "Open Brightly POS from the home screen.",
       ]
     : [
@@ -208,14 +208,23 @@ function InstallSteps({
       </ol>
       {deviceType === "android" && (
         <div className="mt-4">
-          <button
-            type="button"
-            onClick={onInstallApp}
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 text-sm font-bold text-white"
-          >
-            <Download size={18} />
-            {installPromptAvailable ? "Install app" : "Try install prompt"}
-          </button>
+          {installPromptAvailable ? (
+            <button
+              type="button"
+              onClick={onInstallApp}
+              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 text-sm font-bold text-white"
+            >
+              <Download size={18} />
+              Install app
+            </button>
+          ) : (
+            <div className="flex gap-3 rounded-lg bg-white p-3 text-sm text-stone-700">
+              <Menu size={18} className="mt-0.5 shrink-0 text-amber-800" />
+              <p>
+                If your browser does not show an install prompt, open the browser menu and choose Add to Home screen or Install app.
+              </p>
+            </div>
+          )}
           {installPromptStatus && (
             <p className="mt-2 rounded-lg bg-white p-3 text-sm text-stone-600">{installPromptStatus}</p>
           )}
