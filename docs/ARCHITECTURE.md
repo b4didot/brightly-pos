@@ -46,7 +46,7 @@ High-level flow:
 - `/device/setup` - PWA device setup, installation guidance, and activation.
 - `/pos` - POS device route.
 
-The POS route loads local Dexie state, then blocks on the PWA device setup flow until the local `deviceRegistration` singleton has `registrationStatus = "registered"`. A registered device opens the POS directly even if the setup URL is opened again.
+The POS route loads local Dexie state, then blocks on the PWA device setup flow until the local `deviceRegistration` singleton has `registrationStatus = "registered"`. In production, the POS shell also requires installed PWA display mode; normal browser tabs continue showing setup/install guidance even if they share the same origin storage. Local development keeps browser POS access available for testing.
 
 The owner portal uses the service boundary in `src/services/ownerPortal.ts`. When Supabase frontend variables are configured, owner registration, login, token listing, token generation, and device registration use Supabase Auth, Supabase tables, and Edge Functions. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy backend API. Without either remote option, the same service falls back to browser storage so development can exercise the flow without a backend.
 
@@ -131,7 +131,7 @@ Current implementation:
 7. Token entry happens inside the PWA setup flow after installation guidance.
 8. The setup page submits the token through the registration service boundary.
 9. The token is marked used and the POS stores returned owner/shop/device identity plus credential fields.
-10. The POS shell unlocks and loads normal local register workflows.
+10. The installed PWA POS shell unlocks and loads normal local register workflows.
 
 The registration token is not stored after successful device registration. The backend path uses `POST /api/devices/register`; the development fallback burns the token in browser storage and rejects expired tokens.
 

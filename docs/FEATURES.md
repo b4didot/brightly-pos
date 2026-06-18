@@ -15,7 +15,7 @@ The main web routes are:
 - `/device/setup`
 - `/pos`
 
-The POS route requires device registration before the register opens. An unregistered POS device shows the PWA device setup flow.
+The POS route requires device registration before the register opens. In production, the POS shell also requires installed PWA mode; a normal browser tab shows the PWA setup/install flow instead of the register, even if that browser has local device registration data. Local development can still open the POS in a browser for testing.
 
 The owner portal uses Supabase Auth when Supabase frontend variables are configured. Production owners must verify their email before managing dashboard devices. Without Supabase or a backend API URL, the app uses a local development fallback to create owner accounts and generate single-use device registration tokens.
 
@@ -23,7 +23,7 @@ The first-time setup flow is split between the owner dashboard and the POS PWA. 
 
 The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. In browser mode, the setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad, then shows manual home-screen installation instructions. Android instructions direct the owner to the browser three-dot menu, Add to Home screen, then Install. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. If the installed PWA opens `/device/setup?t=TOKEN`, the page shows an Activate Device button and burns that URL token only after the owner taps activate. If no token is present in the installed PWA URL, manual token entry remains available. New PWA installs start at `/pos`; if an already-installed PWA opens `/`, the app detects standalone mode and routes into the POS setup/registration gate.
 
-A registered POS device stores server-style owner/shop/device identity and credential fields locally. After registration, the POS can continue opening and operating offline. There is no cashier login, PIN, role gate, or permission model.
+A registered POS device stores server-style owner/shop/device identity and credential fields locally. After registration, the installed PWA can continue opening and operating offline. There is no cashier login, PIN, role gate, or permission model.
 
 Production web builds can be installed to a device home screen as a PWA. The
 installed app opens in standalone mode without browser UI on supported browsers,

@@ -83,8 +83,10 @@ installation steps should bring the owner into the installed PWA before normal
 POS use.
 
 First launch behavior must be driven by local device registration state. A
-registered device opens the POS directly. An unregistered device shows the PWA
-setup flow.
+registered device opens the POS directly when launched as the installed PWA. A
+normal production browser tab shows the PWA setup/install flow instead of the
+register, even if local device registration data exists for that browser origin.
+An unregistered device shows the PWA setup flow.
 
 ### Acceptance Tests
 
@@ -100,6 +102,8 @@ setup flow.
   token.
 - A valid token activates the device and opens the POS.
 - A used or expired token cannot activate a device.
-- A registered device opens the POS directly on future launches.
+- A registered device opens the POS directly on future installed PWA launches.
+- A production browser tab does not show the POS shell; it shows setup/install
+  guidance.
 - After activation, checkout, tickets, reports, and settings continue to work
   without internet.

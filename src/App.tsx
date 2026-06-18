@@ -67,6 +67,10 @@ function PosGate() {
     return <DeviceRegistrationPage />;
   }
 
+  if (!isInstalledPwa() && !import.meta.env.DEV) {
+    return <DeviceRegistrationPage />;
+  }
+
   return <RegisteredPos syncPendingOutbox={syncPendingOutbox} />;
 }
 
