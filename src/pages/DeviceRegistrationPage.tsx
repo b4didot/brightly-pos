@@ -1,51 +1,18 @@
-import { CheckCircle2, Download, KeyRound, Menu, MonitorDown, Share, Smartphone, Store } from "lucide-react";
+import { CheckCircle2, KeyRound, Menu, MonitorDown, Share, Smartphone, Store } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePosStore } from "../store/usePosStore";
 
 type DeviceType = "android" | "ios";
-type InstallChoice = "accepted" | "dismissed";
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: InstallChoice; platform: string }>;
-};
 
 export function DeviceRegistrationPage() {
   const registerDevice = usePosStore((state) => state.registerDevice);
   const load = usePosStore((state) => state.load);
   const [deviceType, setDeviceType] = useState<DeviceType | null>(null);
-  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installPromptStatus, setInstallPromptStatus] = useState("");
+  const installedPwa = isInstalledPwa();
   const [token, setToken] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    function handleBeforeInstallPrompt(event: Event) {
-      event.preventDefault();
-      setInstallPrompt(event as BeforeInstallPromptEvent);
-      setInstallPromptStatus("");
-    }
-
-    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-  }, []);
-
-  async function handleInstallApp() {
-    if (!installPrompt) {
-      setInstallPromptStatus("The browser has not made the install prompt available yet. Use the browser menu and choose Add to Home screen or Install app.");
-      return;
-    }
-
-    await installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
-    setInstallPrompt(null);
-    setInstallPromptStatus(
-      choice.outcome === "accepted"
-        ? "Brightly POS is being added to your home screen."
-        : "Install was dismissed. You can try again from the browser menu.",
-    );
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,6 +43,7 @@ export function DeviceRegistrationPage() {
           </div>
         </div>
 
+        {!installedPwa && (
         <div className="mt-5 space-y-5">
           <section>
             <h2 className="text-base font-bold">Choose your device</h2>
@@ -95,17 +63,11 @@ export function DeviceRegistrationPage() {
             </div>
           </section>
 
-          {deviceType && (
-            <InstallSteps
-              deviceType={deviceType}
-              installPromptAvailable={installPrompt !== null}
-              installPromptStatus={installPromptStatus}
-              onInstallApp={handleInstallApp}
-            />
-          )}
+          {deviceType && <InstallSteps deviceType={deviceType} />}
         </div>
+        )}
 
-        {deviceType && (
+        {installedPwa && (
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
           <label className="block">
             <span className="text-sm font-bold text-stone-800">Registration token</span>
@@ -133,7 +95,9 @@ export function DeviceRegistrationPage() {
         )}
 
         <div className="mt-4 rounded-lg bg-stone-50 p-3 text-sm text-stone-600">
-          Open this page from the QR code or setup URL shown on the owner dashboard. The token is generated there and is used only once.
+          {installedPwa
+            ? "Enter the token from the owner dashboard to activate this installed POS device."
+            : "After adding Brightly POS to your home screen, open it from the home screen to enter your activation token."}
         </div>
       </section>
     </main>
@@ -167,22 +131,12 @@ function DeviceTypeButton({
   );
 }
 
-function InstallSteps({
-  deviceType,
-  installPromptAvailable,
-  installPromptStatus,
-  onInstallApp,
-}: {
-  deviceType: DeviceType;
-  installPromptAvailable: boolean;
-  installPromptStatus: string;
-  onInstallApp: () => void;
-}) {
+function InstallSteps({ deviceType }: { deviceType: DeviceType }) {
   const steps = deviceType === "android"
     ? [
-        "If the Install app button appears below, tap it.",
-        "If no install button appears, open the browser menu.",
-        "Choose Add to Home screen or Install app from that menu.",
+        "Tap the three-dot browser menu.",
+        "Look for Add to Home screen.",
+        "Tap Install.",
         "Open Brightly POS from the home screen.",
       ]
     : [
@@ -207,29 +161,22 @@ function InstallSteps({
         ))}
       </ol>
       {deviceType === "android" && (
-        <div className="mt-4">
-          {installPromptAvailable ? (
-            <button
-              type="button"
-              onClick={onInstallApp}
-              className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 text-sm font-bold text-white"
-            >
-              <Download size={18} />
-              Install app
-            </button>
-          ) : (
-            <div className="flex gap-3 rounded-lg bg-white p-3 text-sm text-stone-700">
-              <Menu size={18} className="mt-0.5 shrink-0 text-amber-800" />
-              <p>
-                If your browser does not show an install prompt, open the browser menu and choose Add to Home screen or Install app.
-              </p>
-            </div>
-          )}
-          {installPromptStatus && (
-            <p className="mt-2 rounded-lg bg-white p-3 text-sm text-stone-600">{installPromptStatus}</p>
-          )}
+        <div className="mt-4 flex gap-3 rounded-lg bg-white p-3 text-sm text-stone-700">
+          <Menu size={18} className="mt-0.5 shrink-0 text-amber-800" />
+          <p>
+            Some Android browsers may label this action Install app instead of Add to Home screen.
+          </p>
         </div>
       )}
     </section>
+  );
+}
+
+function isInstalledPwa() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: fullscreen)").matches ||
+    window.matchMedia("(display-mode: minimal-ui)").matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }

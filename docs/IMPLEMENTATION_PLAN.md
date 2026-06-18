@@ -52,7 +52,8 @@ home-screen installation steps:
   Home Screen or Install app through the browser menu as fallback.
 - iPhone and iPad use Safari Share, then Add to Home Screen.
 
-After installation guidance, token entry continues inside the PWA setup flow.
+After installation guidance, token entry is shown only after the owner opens
+Brightly POS from the installed PWA.
 The owner enters the token. The device sends the token to the server through
 the registration service boundary. The server validates the token, burns it
 immediately, links the device to the owner and shop, and returns the device id

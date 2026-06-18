@@ -21,7 +21,7 @@ The owner portal uses Supabase Auth when Supabase frontend variables are configu
 
 The first-time setup flow is split between the owner dashboard and the POS PWA. The owner dashboard has an Add Device workflow that generates a single-use token valid for 30 days and shows three activation aids: the token, the PWA setup URL, and a QR code for the same URL. The dashboard instruction is only to open the address on the device and use the token to activate it.
 
-The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. The first setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad. Android devices see an Install app button only when the browser exposes the native PWA install prompt, plus manual Add to Home Screen instructions as fallback. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. Token entry happens after those install steps inside the same PWA setup flow.
+The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. In browser mode, the setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad, then shows manual home-screen installation instructions. Android instructions direct the owner to the browser three-dot menu, Add to Home screen, then Install. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. Token entry is shown only after Brightly POS is launched from the installed PWA.
 
 A registered POS device stores server-style owner/shop/device identity and credential fields locally. After registration, the POS can continue opening and operating offline. There is no cashier login, PIN, role gate, or permission model.
 
