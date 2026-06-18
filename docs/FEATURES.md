@@ -4,7 +4,7 @@ This document describes the features currently implemented in the app.
 
 ## App Access
 
-Brightly POS opens at the public landing page. The landing page introduces the app and has a Get Started button for owner login or account creation.
+Brightly POS opens at the public landing page in a normal browser tab. The landing page introduces the app and has a Get Started button for owner login or account creation. When launched from an installed PWA icon, Brightly POS opens the POS device route instead of the public landing page.
 
 The main web routes are:
 
@@ -21,7 +21,7 @@ The owner portal uses Supabase Auth when Supabase frontend variables are configu
 
 The first-time setup flow is split between the owner dashboard and the POS PWA. The owner dashboard has an Add Device workflow that generates a single-use token valid for 30 days and shows three activation aids: the token, the PWA setup URL, and a QR code for the same URL. The dashboard instruction is only to open the address on the device and use the token to activate it.
 
-The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. In browser mode, the setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad, then shows manual home-screen installation instructions. Android instructions direct the owner to the browser three-dot menu, Add to Home screen, then Install. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. Token entry is shown only after Brightly POS is launched from the installed PWA.
+The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. In browser mode, the setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad, then shows manual home-screen installation instructions. Android instructions direct the owner to the browser three-dot menu, Add to Home screen, then Install. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. Token entry is shown only after Brightly POS is launched from the installed PWA. New PWA installs start at `/pos`; if an already-installed PWA opens `/`, the app detects standalone mode and routes into the POS setup/registration gate.
 
 A registered POS device stores server-style owner/shop/device identity and credential fields locally. After registration, the POS can continue opening and operating offline. There is no cashier login, PIN, role gate, or permission model.
 

@@ -104,8 +104,11 @@ The current Dexie schema version is `15`.
 Production web builds use `vite-plugin-pwa` to generate the web app manifest and
 service worker.
 
-The manifest names the app `Brightly POS`, uses standalone display mode, and
-declares install icons from `public/`.
+The manifest names the app `Brightly POS`, uses standalone display mode,
+starts installed launches at `/pos`, and declares install icons from `public/`.
+If an installed PWA is launched at `/` from an older home-screen shortcut, the
+app detects standalone display mode and routes into the POS setup/registration
+gate instead of the public landing page.
 
 The service worker precaches the built app shell and static assets so the web app
 can load offline after a first successful production visit. POS data remains

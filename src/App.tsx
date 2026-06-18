@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { DeviceRegistrationPage } from "./pages/DeviceRegistrationPage";
 import { OwnerPortalPage } from "./pages/OwnerPortalPage";
 import { usePosStore } from "./store/usePosStore";
+import { isInstalledPwa } from "./utils/pwa";
 
 type AppRoute = "landing" | "pos" | "owner-register" | "owner-login" | "dashboard" | "device-setup";
 
@@ -164,6 +165,7 @@ function useAppRoute(): AppRoute {
 
   const { hash, pathname } = locationKey;
 
+  if (pathname === "/" && isInstalledPwa()) return "pos";
   if (pathname === "/") return "landing";
   if (pathname === "/dashboard") return "dashboard";
   if (pathname === "/owner/register" || hash === "#/owner/register") return "owner-register";
