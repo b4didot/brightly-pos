@@ -11,11 +11,17 @@ source of truth for register use on each device. Supabase owns:
 - Owner profiles and shops.
 - Single-use device activation tokens.
 - Registered devices and device credentials.
-- Uploaded sync events for cloud backup, audit, and future reporting.
+- Uploaded sync events for cloud backup, audit, and owner dashboard reporting.
+- Uploaded config snapshots and owner-requested config sync progress.
 
 For the first production release, devices under one shop are independently
 local-first. Supabase stores their uploaded events, but does not merge menu,
 settings, or order state across devices.
+
+The owner dashboard reads uploaded transaction sync events for reports and
+uploaded configuration snapshots for device config visibility. Owners can
+request config sync to active devices; POS devices pull those requests during
+normal background sync and report progress back to Supabase.
 
 ## Database Migration
 
@@ -34,6 +40,17 @@ It creates:
 - `devices`
 - `sync_events`
 
+Apply the owner-dashboard migration in:
+
+```txt
+supabase/migrations/20260619000100_owner_dashboard_config_sync.sql
+```
+
+It creates:
+
+- `device_config_snapshots`
+- `device_config_sync_requests`
+
 It also enables row-level security for owner-readable tables. Edge Functions use
 server-side service credentials for privileged token burn, device credential,
 and sync ingest operations.
@@ -46,11 +63,15 @@ Deploy these functions:
 supabase/functions/create-device-token
 supabase/functions/activate-device
 supabase/functions/sync-device-events
+supabase/functions/owner-config-sync
+supabase/functions/device-config-sync
 ```
 
 `create-device-token` requires a Supabase Auth JWT. `activate-device` and
 `sync-device-events` use token/device credential authentication, so their
 Supabase JWT verification is disabled in `supabase/config.toml`.
+`owner-config-sync` requires a Supabase Auth JWT. `device-config-sync` uses
+device credential authentication and has JWT verification disabled.
 
 Required function secrets:
 

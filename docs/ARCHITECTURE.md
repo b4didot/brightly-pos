@@ -48,7 +48,7 @@ High-level flow:
 
 The POS route loads local Dexie state, then blocks on the PWA device setup flow until the local `deviceRegistration` singleton has `registrationStatus = "registered"`. In production, the POS shell also requires installed PWA display mode; normal browser tabs continue showing setup/install guidance even if they share the same origin storage. Local development keeps browser POS access available for testing.
 
-The owner portal uses the service boundary in `src/services/ownerPortal.ts`. When Supabase frontend variables are configured, owner registration, login, token listing, token generation, and device registration use Supabase Auth, Supabase tables, and Edge Functions. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy backend API. Without either remote option, the same service falls back to browser storage so development can exercise the flow without a backend.
+The owner portal uses the service boundaries in `src/services/ownerPortal.ts` and `src/services/ownerDashboard.ts`. When Supabase frontend variables are configured, owner registration, login, token listing, token generation, device registration, dashboard devices, synced transaction reporting, config snapshots, and config sync requests use Supabase Auth, Supabase tables, and Edge Functions. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy backend API. Without either remote option, browser storage fallback keeps local development flows usable.
 
 ## Main Views
 
@@ -144,6 +144,10 @@ The registration token is not stored after successful device registration. The b
 Checkout and ticket state changes write local data first. The same Dexie transaction creates a `syncOutbox` row for upload.
 
 `syncPendingOutbox()` runs after registration and periodically uploads pending rows through `src/services/syncClient.ts`. When Supabase is configured, it sends events to the `sync-device-events` Edge Function using server-issued device credential headers. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy API. Without either remote option, pending entries are locally acknowledged so the outbox lifecycle remains testable during development.
+
+Settings and menu configuration changes write local data first, then append `settings.snapshot` outbox rows using the same local-first queue. The uploaded snapshot payload reuses the settings export format from `src/services/settingsTransfer.ts` and is stored in Supabase for owner dashboard visibility.
+
+Owner-requested config sync is pull-based from the POS side. The device's periodic sync response can include pending config requests. The POS shows a persistent banner with Apply Now and Later actions; it does not block checkout or tickets. Applying a request imports the included settings payload locally, then reports progress to the `device-config-sync` Edge Function. Owners create requests through the `owner-config-sync` Edge Function.
 
 ## Checkout Architecture
 

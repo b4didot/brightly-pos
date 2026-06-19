@@ -99,7 +99,7 @@ Stores the singleton POS device registration state. The real `deviceId` is serve
 
 `syncOutbox`
 
-Stores durable local sync events created after local writes, such as transaction creation, served state, and void state.
+Stores durable local sync events created after local writes, such as transaction creation, served state, void state, and settings snapshots.
 
 `syncState`
 
@@ -221,6 +221,8 @@ Current mutable transaction fields are operational state:
 Voided transactions are excluded from report totals.
 
 Serving or voiding a transaction creates a sync outbox entry in the same local mutation flow.
+
+Settings, menu, payment option, VAT, discount, adjustment, and settings import changes create `settings.snapshot` outbox entries after local persistence succeeds. Snapshot payloads reuse the settings export format and do not change the local Dexie schema.
 
 ## Registration And Sync Metadata
 

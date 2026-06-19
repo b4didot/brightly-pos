@@ -19,6 +19,10 @@ The POS route requires device registration before the register opens. In product
 
 The owner portal uses Supabase Auth when Supabase frontend variables are configured. Production owners must verify their email before managing dashboard devices. Without Supabase or a backend API URL, the app uses a local development fallback to create owner accounts and generate single-use device registration tokens.
 
+The owner dashboard is a management surface with Overview, Reports, Devices, Config Sync, Profile, and Subscription sections behind a slide-out navigation drawer. Overview shows synced transaction summaries, a 14-day sales trend, top selling items, payment split, device sales contribution, and device sync health from uploaded POS sync events. Dashboard data visuals use the system teal and apricot colors for chart objects. Reports can export the same report families as the POS report screen with owner-side filters for date range, device, payment method, order type, and transaction status. Devices keeps the existing add-device token and QR workflow, lists registered devices, shows last transaction sync and last online time, and can disable a device without deleting its historical records.
+
+The Config Sync section shows uploaded POS configuration snapshots and lets the owner request that active devices apply a selected snapshot. POS devices receive requests during background sync and show a persistent non-modal banner with Apply Now and Later actions, so checkout and ticket work can continue while the request is pending. Subscription is a prepared UI page only; billing actions are not connected to a backend yet.
+
 The first-time setup flow is split between the owner dashboard and the POS PWA. The owner dashboard has an Add Device workflow that generates a single-use token valid for 30 days and shows three activation aids: the token, the PWA setup URL with the token in the `t` query parameter, and a QR code for that same tokenized URL. Activation tokens remain visible in the dashboard because they are single-use and burn after activation. The dashboard instruction is only to open the address on the device and use the token to activate it.
 
 The device setup page lives inside the Brightly POS PWA. The setup URL opens the PWA route on the target device. In browser mode, the setup screen asks whether the device is an Android phone or tablet, or an iPhone or iPad, then shows manual home-screen installation instructions. Android instructions direct the owner to the browser three-dot menu, Add to Home screen, then Install. iPhone and iPad devices see Safari Share and Add to Home Screen instructions. When `/device/setup?t=TOKEN` is opened in browser mode, the page points the install manifest at that same tokenized setup URL so the installed PWA can reopen it. If the installed PWA opens `/device/setup?t=TOKEN`, the page shows an Activate Device button and burns that URL token only after the owner taps activate. If no token is present in the installed PWA URL, manual token entry remains available.
@@ -231,6 +235,8 @@ On web, downloads use browser file download behavior.
 ## Sync
 
 Checkout, served, and voided transaction changes create local sync outbox entries. In production, pending entries upload to Supabase through the `sync-device-events` Edge Function with the registered device credentials. Without Supabase or a backend API URL, pending entries are locally acknowledged so the outbox flow can be tested during development.
+
+Settings, menu, payment, VAT, discount, adjustment, and settings import changes also create local `settings.snapshot` sync outbox entries after local persistence succeeds. These snapshots upload silently when online and power the owner dashboard's Config Sync view.
 
 ## Feature Maintenance
 

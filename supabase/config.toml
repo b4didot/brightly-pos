@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.sync-device-events]
 verify_jwt = false
+
+[functions.owner-config-sync]
+verify_jwt = true
+
+[functions.device-config-sync]
+verify_jwt = false

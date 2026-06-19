@@ -43,6 +43,28 @@ export type SyncEventType =
   | "transaction.voided"
   | "settings.snapshot";
 
+export type ConfigSyncRequestStatus =
+  | "requested"
+  | "seen"
+  | "accepted"
+  | "applied"
+  | "failed";
+
+export type DeviceConfigSyncRequest = {
+  id: string;
+  shopId: string;
+  sourceDeviceId: string | null;
+  targetDeviceId: string;
+  status: ConfigSyncRequestStatus;
+  requestedAt: string;
+  seenAt: string | null;
+  acceptedAt: string | null;
+  appliedAt: string | null;
+  failedAt: string | null;
+  lastError: string | null;
+  settingsPayload: unknown;
+};
+
 export type SyncOutboxEntry = {
   id: string;
   eventType: SyncEventType;

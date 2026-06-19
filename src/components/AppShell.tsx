@@ -1,4 +1,5 @@
-import { BarChart3, Settings, ShoppingCart, Ticket } from "lucide-react";
+import { BarChart3, Settings, ShoppingCart, Ticket, UploadCloud } from "lucide-react";
+import { useState } from "react";
 import { usePosStore } from "../store/usePosStore";
 import { NavButton } from "./NavButton";
 import { OrderPage } from "../pages/OrderPage";
@@ -10,6 +11,24 @@ export function AppShell() {
   const activeView = usePosStore((state) => state.activeView);
   const setActiveView = usePosStore((state) => state.setActiveView);
   const settings = usePosStore((state) => state.settings);
+  const pendingConfigSyncRequests = usePosStore((state) => state.pendingConfigSyncRequests);
+  const applyConfigSyncRequest = usePosStore((state) => state.applyConfigSyncRequest);
+  const deferConfigSyncRequest = usePosStore((state) => state.deferConfigSyncRequest);
+  const [syncError, setSyncError] = useState("");
+  const [applyingRequestId, setApplyingRequestId] = useState("");
+  const pendingRequest = pendingConfigSyncRequests.find((request) => request.status === "requested" || request.status === "seen");
+
+  async function handleApplyConfigRequest(requestId: string) {
+    setSyncError("");
+    setApplyingRequestId(requestId);
+    try {
+      await applyConfigSyncRequest(requestId);
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : "Could not apply owner settings.");
+    } finally {
+      setApplyingRequestId("");
+    }
+  }
 
   return (
     <main
@@ -57,6 +76,40 @@ export function AppShell() {
           </nav>
         </div>
       </header>
+
+      {pendingRequest ? (
+        <section className="sticky top-[86px] z-10 border-b border-amber-200 bg-amber-50 px-3 py-3 text-stone-950 shadow-sm sm:top-[73px] sm:px-4">
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-white text-amber-800">
+                <UploadCloud size={20} />
+              </div>
+              <div>
+                <p className="font-bold">Owner settings update is ready</p>
+                <p className="text-sm text-stone-700">Apply it now or later. Orders and checkout can continue while this is pending.</p>
+                {syncError ? <p className="mt-1 text-sm font-semibold text-red-700">{syncError}</p> : null}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex">
+              <button
+                type="button"
+                onClick={() => void deferConfigSyncRequest(pendingRequest.id)}
+                className="min-h-11 rounded-lg border border-amber-300 bg-white px-4 text-sm font-bold text-stone-800"
+              >
+                Later
+              </button>
+              <button
+                type="button"
+                disabled={applyingRequestId === pendingRequest.id}
+                onClick={() => void handleApplyConfigRequest(pendingRequest.id)}
+                className="min-h-11 rounded-lg bg-stone-950 px-4 text-sm font-bold text-white disabled:bg-stone-300"
+              >
+                {applyingRequestId === pendingRequest.id ? "Applying..." : "Apply Now"}
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {activeView === "order" && <OrderPage />}
       {activeView === "tickets" && <TicketsPage />}

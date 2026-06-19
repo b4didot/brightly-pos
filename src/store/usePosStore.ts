@@ -10,7 +10,7 @@ import {
 } from "../db/database";
 import { consumeRegistrationToken } from "../services/ownerPortal";
 import { createSettingsExport, importSettingsExport } from "../services/settingsTransfer";
-import { uploadSyncOutbox } from "../services/syncClient";
+import { updateConfigSyncRequestStatus, uploadSyncOutbox } from "../services/syncClient";
 import { calculateCartTotals } from "../utils/cart";
 import { toDateInputValue } from "../utils/dates";
 import { downloadFile } from "../utils/download";
@@ -22,6 +22,7 @@ import type {
   CartLine,
   Category,
   DeviceRegistration,
+  DeviceConfigSyncRequest,
   DiscountTemplate,
   Item,
   ItemAddOn,
@@ -54,6 +55,7 @@ type PosState = {
   deviceRegistration: DeviceRegistration;
   syncState: SyncState;
   syncOutbox: SyncOutboxEntry[];
+  pendingConfigSyncRequests: DeviceConfigSyncRequest[];
   transactions: Transaction[];
   transactionItems: TransactionItem[];
   cart: CartLine[];
@@ -68,6 +70,8 @@ type PosState = {
   load: () => Promise<void>;
   registerDevice: (token: string) => Promise<void>;
   syncPendingOutbox: () => Promise<void>;
+  applyConfigSyncRequest: (requestId: string) => Promise<void>;
+  deferConfigSyncRequest: (requestId: string) => Promise<void>;
   resetLocalData: () => Promise<void>;
   setSelectedCategoryId: (categoryId: string) => void;
   setPendingOrderType: (orderType: OrderType) => void;
@@ -298,6 +302,16 @@ function createOutboxEntry(eventType: SyncOutboxEntry["eventType"], recordId: st
   };
 }
 
+async function queueSettingsSnapshot() {
+  const registration = await db.deviceRegistration.get("main");
+  if (registration?.registrationStatus !== "registered") {
+    return;
+  }
+
+  const payload = await createSettingsExport();
+  await db.syncOutbox.add(createOutboxEntry("settings.snapshot", registration.deviceId ?? "settings", payload));
+}
+
 export const usePosStore = create<PosState>((set, get) => ({
   activeView: "order",
   categories: [],
@@ -312,6 +326,7 @@ export const usePosStore = create<PosState>((set, get) => ({
   deviceRegistration: defaultDeviceRegistration,
   syncState: defaultSyncState,
   syncOutbox: [],
+  pendingConfigSyncRequests: [],
   transactions: [],
   transactionItems: [],
   cart: [],
@@ -387,14 +402,20 @@ export const usePosStore = create<PosState>((set, get) => ({
 
     const pendingEntries = await db.syncOutbox.where("status").equals("pending").toArray();
     if (pendingEntries.length === 0) {
-      await db.syncState.put({
-        id: "main",
-        status: "idle",
-        lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
-        lastFailedSyncAt: null,
-        lastError: null,
-      });
-      set(await loadSnapshot());
+      try {
+        const acknowledgement = await uploadSyncOutbox(registration, []);
+        await db.deviceRegistration.update("main", { lastSeenAt: new Date().toISOString() });
+        set({ ...(await loadSnapshot()), pendingConfigSyncRequests: acknowledgement.configRequests ?? get().pendingConfigSyncRequests });
+      } catch {
+        await db.syncState.put({
+          id: "main",
+          status: "idle",
+          lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
+          lastFailedSyncAt: null,
+          lastError: null,
+        });
+        set(await loadSnapshot());
+      }
       return;
     }
 
@@ -406,9 +427,11 @@ export const usePosStore = create<PosState>((set, get) => ({
     });
     set(await loadSnapshot());
 
+    let configRequests = get().pendingConfigSyncRequests;
     try {
       const acknowledgement = await uploadSyncOutbox(registration, pendingEntries);
       const acknowledgedIds = new Set(acknowledgement.acknowledgedIds);
+      configRequests = acknowledgement.configRequests ?? configRequests;
       const syncedAt = new Date().toISOString();
 
       await db.transaction("rw", db.syncOutbox, db.syncState, db.deviceRegistration, async () => {
@@ -453,7 +476,41 @@ export const usePosStore = create<PosState>((set, get) => ({
         });
       });
     }
-    set(await loadSnapshot());
+    set({ ...(await loadSnapshot()), pendingConfigSyncRequests: configRequests });
+  },
+  applyConfigSyncRequest: async (requestId) => {
+    const request = get().pendingConfigSyncRequests.find((entry) => entry.id === requestId);
+    const registration = await db.deviceRegistration.get("main");
+    if (!request || !registration) return;
+
+    try {
+      await updateConfigSyncRequestStatus(registration, request.id, "accepted");
+      await importSettingsExport(request.settingsPayload);
+      await updateConfigSyncRequestStatus(registration, request.id, "applied");
+      set({
+        ...(await loadSnapshot()),
+        pendingConfigSyncRequests: get().pendingConfigSyncRequests.filter((entry) => entry.id !== requestId),
+      });
+    } catch (error) {
+      await updateConfigSyncRequestStatus(
+        registration,
+        request.id,
+        "failed",
+        error instanceof Error ? error.message : "Could not apply settings.",
+      );
+      throw error;
+    }
+  },
+  deferConfigSyncRequest: async (requestId) => {
+    const request = get().pendingConfigSyncRequests.find((entry) => entry.id === requestId);
+    const registration = await db.deviceRegistration.get("main");
+    if (!request || !registration) return;
+    await updateConfigSyncRequestStatus(registration, request.id, "seen");
+    set({
+      pendingConfigSyncRequests: get().pendingConfigSyncRequests.map((entry) =>
+        entry.id === requestId ? { ...entry, status: "seen", seenAt: new Date().toISOString() } : entry,
+      ),
+    });
   },
   resetLocalData: async () => {
     set({ loading: true, loadError: "" });
@@ -732,6 +789,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.categories.put(category);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   deleteCategory: async (categoryId) => {
@@ -742,6 +800,7 @@ export const usePosStore = create<PosState>((set, get) => ({
         assignedItems.map((item) => db.items.update(item.id, { categoryId: null })),
       );
     });
+    await queueSettingsSnapshot();
     set({ ...(await loadSnapshot()), selectedCategoryId: "all" });
   },
   saveItem: async ({ id, name, price, categoryId }) => {
@@ -757,6 +816,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.items.put(item);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   saveAddOnItem: async ({ id, name, price }) => {
@@ -772,6 +832,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.items.put(item);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   deleteItem: async (itemId) => {
@@ -780,6 +841,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     await db.itemModifiers.where("itemId").equals(itemId).delete();
     await db.itemAddOns.where("itemId").equals(itemId).delete();
     await db.itemAddOns.where("addOnItemId").equals(itemId).delete();
+    await queueSettingsSnapshot();
     set({
       ...(await loadSnapshot()),
       cart: get().cart.filter((line) => line.itemId !== itemId),
@@ -793,6 +855,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.items.update(itemId, { isOutOfStock: !item.isOutOfStock });
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   saveItemVariant: async ({ id, itemId, name, price, sortOrder }) => {
@@ -807,10 +870,12 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.itemVariants.put(variant);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   deleteItemVariant: async (variantId) => {
     await db.itemVariants.delete(variantId);
+    await queueSettingsSnapshot();
     set({
       ...(await loadSnapshot()),
       cart: get().cart.filter((line) => line.variantId !== variantId),
@@ -826,11 +891,13 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.modifiers.put(modifier);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   deleteModifier: async (modifierId) => {
     await db.itemModifiers.where("modifierId").equals(modifierId).delete();
     await db.modifiers.delete(modifierId);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   linkModifierToItem: async (itemId, modifierId) => {
@@ -845,6 +912,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.itemModifiers.add({ id: createId("im"), itemId, modifierId });
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   unlinkModifierFromItem: async (itemId, modifierId) => {
@@ -853,6 +921,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       .equals(itemId)
       .filter((itemModifier) => itemModifier.modifierId === modifierId)
       .delete();
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   linkAddOnToItem: async (itemId, addOnItemId) => {
@@ -871,6 +940,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.itemAddOns.add({ id: createId("iao"), itemId, addOnItemId });
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   unlinkAddOnFromItem: async (itemId, addOnItemId) => {
@@ -879,6 +949,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       .equals(itemId)
       .filter((itemAddOn) => itemAddOn.addOnItemId === addOnItemId)
       .delete();
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   saveAdjustment: async ({ id, label, type, value, enabled }) => {
@@ -892,10 +963,12 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.adjustments.put(adjustment);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   deleteAdjustment: async (adjustmentId) => {
     await db.adjustments.delete(adjustmentId);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   saveDiscountTemplate: async ({ id, label, type, value }) => {
@@ -909,10 +982,12 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.discountTemplates.put(discount);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   deleteDiscountTemplate: async (discountId) => {
     await db.discountTemplates.delete(discountId);
+    await queueSettingsSnapshot();
     const cartDiscount = get().cartDiscount;
     set({
       ...(await loadSnapshot()),
@@ -932,6 +1007,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.settings.put(nextSettings);
+    await queueSettingsSnapshot();
     set({ settings: nextSettings });
   },
   setDiscountsEnabled: async (enabled) => {
@@ -942,6 +1018,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.settings.put(nextSettings);
+    await queueSettingsSnapshot();
     set({ settings: nextSettings, cartDiscount: enabled ? get().cartDiscount : null });
   },
   updateVatSettings: async (vatSettings) => {
@@ -954,6 +1031,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.settings.put(nextSettings);
+    await queueSettingsSnapshot();
     set({ settings: nextSettings });
   },
   updateShopSettings: async (shopSettings) => {
@@ -967,6 +1045,7 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.settings.put(nextSettings);
+    await queueSettingsSnapshot();
     set({ settings: nextSettings });
   },
   exportSettings: async () => {
@@ -980,6 +1059,7 @@ export const usePosStore = create<PosState>((set, get) => ({
   importSettings: async (file) => {
     const payload = JSON.parse(await file.text()) as unknown;
     await importSettingsExport(payload);
+    await queueSettingsSnapshot();
     set(await loadSnapshot());
   },
   setReportRange: (reportStartDate, reportEndDate) => {
