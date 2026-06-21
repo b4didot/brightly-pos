@@ -17,15 +17,17 @@ export function SalesTrendChart({
   const visibleSeries = mode === "all" ? ["gross", "net"] as const : [mode] as const;
   const max = Math.max(...points.flatMap((point) => visibleSeries.map((series) => point[series])), 1);
   const yMax = Math.ceil(max / 1000) * 1000 || max;
-  const left = 42;
-  const right = 0;
+  const axisGutter = 76;
+  const left = axisGutter;
+  const right = axisGutter;
   const top = 16;
   const bottom = 42;
-  const width = 1100;
+  const width = Math.min(Math.max(620, points.length * 68 + left + right), 1440);
   const height = 300;
   const plotWidth = width - left - right;
   const plotHeight = height - top - bottom;
   const yTicks = [1, 0.75, 0.5, 0.25, 0];
+  const labelInterval = points.length <= 14 ? 1 : points.length <= 31 ? 2 : points.length <= 62 ? 4 : 7;
   const seriesStyles = {
     gross: { area: dashboardTheme.primarySoft, dot: dashboardTheme.primary, label: "Gross", line: dashboardTheme.primary },
     net: { area: dashboardTheme.secondarySoft, dot: dashboardTheme.secondary, label: "Net", line: dashboardTheme.secondary },
@@ -49,7 +51,7 @@ export function SalesTrendChart({
     const x = left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
     const selectedValues = visibleSeries.map((series) => `${seriesStyles[series].label}: ${formatPeso(point[series])}`).join(" / ");
     const boxWidth = mode === "all" ? 178 : 124;
-    const boxX = Math.min(Math.max(x - boxWidth / 2, left), width - boxWidth - 4);
+    const boxX = Math.min(Math.max(x - boxWidth / 2, left), width - right - boxWidth);
 
     return (
       <g key={`${tone}-${index}`}>
@@ -72,8 +74,9 @@ export function SalesTrendChart({
   }
 
   return (
-    <div className="h-full min-h-0 rounded-lg p-2" style={{ backgroundColor: dashboardTheme.surface }}>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Sales over time" className="block h-full w-full">
+    <div className="h-full min-h-0 overflow-x-auto rounded-lg p-2" style={{ backgroundColor: dashboardTheme.surface }}>
+      <div className="h-full" style={{ minWidth: `${width}px` }}>
+        <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Sales over time" className="block h-full w-full">
         {yTicks.map((tick) => {
           const y = top + (1 - tick) * plotHeight;
           return (
@@ -82,10 +85,14 @@ export function SalesTrendChart({
               <text x={left - 10} y={y + 4} textAnchor="end" className="fill-stone-500 text-[11px] font-semibold">
                 {formatCompactCurrency(yMax * tick)}
               </text>
+              <text x={left + plotWidth + 10} y={y + 4} textAnchor="start" className="fill-stone-500 text-[11px] font-semibold">
+                {formatCompactCurrency(yMax * tick)}
+              </text>
             </g>
           );
         })}
         <line x1={left} x2={left} y1={top} y2={top + plotHeight} stroke={dashboardTheme.grid} strokeWidth="1" />
+        <line x1={left + plotWidth} x2={left + plotWidth} y1={top} y2={top + plotHeight} stroke={dashboardTheme.grid} strokeWidth="1" />
         {visibleSeries.map((series) => {
           const seriesPoints = chartPointsFor(series);
           const path = pathFor(seriesPoints);
@@ -104,15 +111,16 @@ export function SalesTrendChart({
           const x = left + (points.length === 1 ? plotWidth / 2 : (index / (points.length - 1)) * plotWidth);
           const isSelected = selectedIndex === index;
           const label = formatChartDayLabel(point.label, index);
-          const segmentWidth = width / points.length;
+          const showLabel = index === 0 || index === points.length - 1 || index % labelInterval === 0;
+          const segmentWidth = plotWidth / points.length;
           const segmentLeft = Math.max(left, x - segmentWidth / 2);
-          const segmentRight = Math.min(width, x + segmentWidth / 2);
+          const segmentRight = Math.min(left + plotWidth, x + segmentWidth / 2);
           return (
             <g key={point.label}>
               <rect
-                x={index === 0 ? 0 : segmentLeft}
+                x={index === 0 ? left : segmentLeft}
                 y={top}
-                width={index === points.length - 1 ? width - segmentLeft : segmentRight - segmentLeft}
+                width={index === points.length - 1 ? left + plotWidth - segmentLeft : segmentRight - segmentLeft}
                 height={plotHeight}
                 fill="transparent"
                 className="cursor-pointer"
@@ -120,18 +128,23 @@ export function SalesTrendChart({
                 onMouseLeave={() => setHoveredIndex(null)}
                 onClick={() => setSelectedIndex(isSelected ? null : index)}
               />
-              <text x={x} y={height - 22} textAnchor="middle" className="fill-stone-700 text-[12px] font-bold">
-                {label.day}
-              </text>
-              <text x={x} y={height - 7} textAnchor="middle" className="fill-stone-500 text-[11px]">
-                {label.date}
-              </text>
+              {showLabel ? (
+                <>
+                  <text x={x} y={height - 22} textAnchor="middle" className="fill-stone-700 text-[12px] font-bold">
+                    {label.day}
+                  </text>
+                  <text x={x} y={height - 7} textAnchor="middle" className="fill-stone-500 text-[11px]">
+                    {label.date}
+                  </text>
+                </>
+              ) : null}
             </g>
           );
         })}
         {selectedIndex !== null ? renderTooltip(selectedIndex, "selected") : null}
         {hoveredIndex !== null && hoveredIndex !== selectedIndex ? renderTooltip(hoveredIndex, "hover") : null}
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { calculateCartTotals } from "../utils/cart";
 import { toDateInputValue } from "../utils/dates";
 import { downloadFile } from "../utils/download";
 import { createId } from "../utils/id";
+import { seedDemoOrdersThroughToday, type SeedOrdersResult } from "../utils/orderSeeder";
 import { calculateInclusiveVat, defaultVatSettings } from "../utils/vat";
 import type {
   Adjustment,
@@ -69,6 +70,7 @@ type PosState = {
   setActiveView: (view: ViewName) => void;
   load: () => Promise<void>;
   registerDevice: (token: string) => Promise<void>;
+  seedDemoOrders: () => Promise<SeedOrdersResult>;
   syncPendingOutbox: () => Promise<void>;
   applyConfigSyncRequest: (requestId: string) => Promise<void>;
   deferConfigSyncRequest: (requestId: string) => Promise<void>;
@@ -381,6 +383,11 @@ export const usePosStore = create<PosState>((set, get) => ({
 
     await db.deviceRegistration.put(nextRegistration);
     set({ ...(await loadSnapshot()) });
+  },
+  seedDemoOrders: async () => {
+    const result = await seedDemoOrdersThroughToday();
+    set(await loadSnapshot());
+    return result;
   },
   syncPendingOutbox: async () => {
     const registration = await db.deviceRegistration.get("main");

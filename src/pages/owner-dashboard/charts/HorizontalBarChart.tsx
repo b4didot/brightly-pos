@@ -21,7 +21,7 @@ export function HorizontalBarChart({ rows, tone }: { rows: OverviewBarDatum[]; t
             <span className="shrink-0 font-semibold text-stone-600">{row.value > 999 ? formatPeso(row.value) : row.value}</span>
           </div>
           <div className="h-3 rounded-full" style={{ backgroundColor: trackColor }}>
-            <div className="h-3 rounded-full" style={{ width: `${Math.max(4, (row.value / max) * 100)}%`, backgroundColor: barColor }} />
+            <div className="h-3 rounded-full" style={{ width: row.value === 0 ? 0 : `${Math.max(4, (row.value / max) * 100)}%`, backgroundColor: barColor }} />
           </div>
         </div>
       ))}

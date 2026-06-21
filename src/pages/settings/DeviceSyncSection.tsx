@@ -1,11 +1,33 @@
-import { MonitorSmartphone } from "lucide-react";
+import { DatabaseZap, MonitorSmartphone } from "lucide-react";
+import { useState } from "react";
 import { usePosStore } from "../../store/usePosStore";
 import { formatDateTime } from "../../utils/dates";
 
 export function DeviceSyncSection() {
   const deviceRegistration = usePosStore((state) => state.deviceRegistration);
+  const seedDemoOrders = usePosStore((state) => state.seedDemoOrders);
+  const syncPendingOutbox = usePosStore((state) => state.syncPendingOutbox);
   const syncState = usePosStore((state) => state.syncState);
   const pendingSyncCount = usePosStore((state) => state.syncOutbox.filter((entry) => entry.status === "pending").length);
+  const [seedStatus, setSeedStatus] = useState<"idle" | "seeding" | "done" | "error">("idle");
+  const [seedMessage, setSeedMessage] = useState("");
+
+  async function handleSeedOrders() {
+    setSeedStatus("seeding");
+    setSeedMessage("");
+
+    try {
+      const result = await seedDemoOrders();
+      await syncPendingOutbox();
+      setSeedStatus("done");
+      setSeedMessage(
+        `Seeded ${result.insertedTransactions} orders from ${result.startDate} to ${result.endDate}. Skipped ${result.skippedExistingTransactions} existing seeded orders.`,
+      );
+    } catch (error) {
+      setSeedStatus("error");
+      setSeedMessage(error instanceof Error ? error.message : "Unable to seed orders.");
+    }
+  }
 
   return (
     <div className="space-y-3">
@@ -35,6 +57,23 @@ export function DeviceSyncSection() {
           {syncState.lastError}
         </p>
       )}
+
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+        <button
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-amber-800 px-4 py-3 text-sm font-bold text-white transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={seedStatus === "seeding"}
+          type="button"
+          onClick={handleSeedOrders}
+        >
+          <DatabaseZap size={18} />
+          {seedStatus === "seeding" ? "Seeding orders..." : "Seed demo orders"}
+        </button>
+        {seedMessage && (
+          <p className={`mt-2 text-sm font-semibold ${seedStatus === "error" ? "text-red-700" : "text-amber-900"}`}>
+            {seedMessage}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
