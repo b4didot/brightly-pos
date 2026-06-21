@@ -1,5 +1,6 @@
 import type { DeviceConfigSnapshot, OwnerDevice, OwnerTransactionRecord } from "../../services/ownerDashboard";
 import type { Item } from "../../types";
+import { toDateInputValue } from "../../utils/dates";
 import { formatPeso } from "../../utils/money";
 import type { OverviewAnalytics } from "./types";
 
@@ -18,7 +19,7 @@ export function buildOverviewAnalytics(
   const deviceTotals = new Map<string, number>();
 
   records.forEach(({ transaction, transactionItems }) => {
-    const day = transaction.createdAt.slice(0, 10);
+    const day = toDateInputValue(new Date(transaction.createdAt));
     const dayTotals = salesByDay.get(day) ?? { gross: 0, net: 0 };
     const discountTotal = transaction.discount?.computedAmount ?? 0;
     salesByDay.set(day, {
@@ -121,7 +122,7 @@ export function createDateRangeKeys(startDate?: string, endDate?: string, today 
   const cursor = new Date(first);
 
   while (cursor <= last) {
-    keys.push(cursor.toISOString().slice(0, 10));
+    keys.push(toDateInputValue(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
 
@@ -132,7 +133,7 @@ export function createRecentDateKeys(dayCount: number, today = new Date()) {
   return Array.from({ length: dayCount }, (_, index) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (dayCount - 1 - index));
-    return date.toISOString().slice(0, 10);
+    return toDateInputValue(date);
   });
 }
 
@@ -142,8 +143,8 @@ function parseDateKey(value: string) {
 }
 
 export function formatChartDayLabel(label: string, index: number) {
-  const parsed = new Date(label);
-  if (!Number.isNaN(parsed.getTime())) {
+  const parsed = parseDateKey(label);
+  if (parsed) {
     return {
       day: new Intl.DateTimeFormat("en-PH", { weekday: "short" }).format(parsed),
       date: new Intl.DateTimeFormat("en-PH", { month: "short", day: "2-digit" }).format(parsed),
