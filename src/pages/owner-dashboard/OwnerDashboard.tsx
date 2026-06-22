@@ -1,13 +1,16 @@
-import { BarChart3, CreditCard, Download, KeyRound, Laptop, LayoutDashboard, LogOut, Menu, Plus, QrCode, RefreshCw, Settings2, Trash2, UserRound, X } from "lucide-react";
+import { BadgePercent, Banknote, BarChart3, Check, CreditCard, Download, FolderOpen, KeyRound, Laptop, LayoutDashboard, Link2, ListPlus, LogOut, Menu, MonitorSmartphone, Percent, Plus, QrCode, RefreshCw, Save, Settings2, ShoppingBag, ShoppingCart, SlidersHorizontal, Trash2, UserRound, X } from "lucide-react";
 import QRCode from "qrcode";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   buildOwnerReportRows,
   createOwnerConfigSyncRequest,
+  deleteOwnerConfigTemplate,
   disableOwnerDevice,
   exportOwnerReport,
   filterOwnerTransactions,
   loadOwnerDashboardData,
+  saveOwnerConfigTemplate,
   sendOwnerPasswordReset,
   updateOwnerProfile,
   type OwnerDashboardData,
@@ -20,6 +23,8 @@ import {
   type OwnerSession,
   type RegistrationToken,
 } from "../../services/ownerPortal";
+import type { SettingsExportPayload } from "../../services/settingsTransfer";
+import type { Category, Item, Modifier } from "../../types";
 import { formatDateTime } from "../../utils/dates";
 import { OverviewSection } from "./OverviewSection";
 import { deviceName } from "./analytics";
@@ -29,6 +34,8 @@ import { DateInput, Select } from "./components/FormControls";
 import { MetricCard } from "./components/MetricCard";
 import { StatusPill } from "./components/StatusPill";
 import type { DashboardSection, DashboardSectionDefinition, ReportKind } from "./types";
+import { CollapsibleSection } from "../settings/CollapsibleSection";
+import { ToggleRow as SettingsToggleRow } from "../settings/ToggleRow";
 
 const dashboardSections: DashboardSectionDefinition[] = [
   { id: "overview", label: "Overview", icon: <LayoutDashboard size={18} /> },
@@ -64,6 +71,7 @@ export function OwnerDashboard({
     transactions: [],
     configSnapshots: [],
     configRequests: [],
+    configTemplates: [],
   });
   const [isLoading, setIsLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState("");
@@ -388,31 +396,128 @@ function DevicesSection({ data, onRefresh, session }: { data: OwnerDashboardData
 }
 
 function ConfigSyncSection({ data, onRefresh, session }: { data: OwnerDashboardData; onRefresh: () => Promise<void>; session: OwnerSession }) {
-  const [sourceSnapshotId, setSourceSnapshotId] = useState("");
   const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [isPushModalOpen, setIsPushModalOpen] = useState(false);
   const [message, setMessage] = useState("");
-  const effectiveSourceSnapshotId = sourceSnapshotId || data.configSnapshots[0]?.id || "";
-  const selectedSnapshot = data.configSnapshots.find((snapshot) => snapshot.id === effectiveSourceSnapshotId) ?? data.configSnapshots[0];
-  const lastSettingsChange = data.configSnapshots.find((snapshot) => snapshot.settingsChangedAt) ?? data.configSnapshots[0];
+  const [templateId, setTemplateId] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [templatePayload, setTemplatePayload] = useState<SettingsExportPayload>(() => createBlankSettingsPayload(session));
+  const [templateSourceDeviceId, setTemplateSourceDeviceId] = useState<string | null>(null);
+  const [templateSourceDeviceName, setTemplateSourceDeviceName] = useState<string | null>(null);
+  const activeDevices = data.devices.filter((device) => device.status === "active");
+  const selectedTemplate = data.configTemplates.find((template) => template.id === templateId);
+  const canApply = selectedDevices.length > 0;
+
+  const latestRequestByDevice = useMemo(() => {
+    const requests = new Map<string, (typeof data.configRequests)[number]>();
+    data.configRequests.forEach((request) => {
+      if (!requests.has(request.targetDeviceId)) {
+        requests.set(request.targetDeviceId, request);
+      }
+    });
+    return requests;
+  }, [data]);
+
+  function latestSnapshotForDevice(device: OwnerDashboardData["devices"][number]) {
+    return data.configSnapshots.find((snapshot) => snapshot.deviceId === device.id)
+      ?? data.configSnapshots.find((snapshot) => snapshot.deviceName === device.deviceName)
+      ?? null;
+  }
 
   function toggleDevice(deviceId: string) {
     setSelectedDevices((current) => current.includes(deviceId) ? current.filter((id) => id !== deviceId) : [...current, deviceId]);
   }
 
+  function handleCheckDevice(device: OwnerDashboardData["devices"][number]) {
+    const snapshot = latestSnapshotForDevice(device);
+    if (!snapshot) {
+      setMessage(`No uploaded config snapshot was found for ${device.deviceName}. Refresh the dashboard after the POS sync completes.`);
+      return;
+    }
+
+    setTemplateId("");
+    setTemplateName(`${snapshot.deviceName} settings`);
+    setTemplateSourceDeviceId(snapshot.deviceId);
+    setTemplateSourceDeviceName(snapshot.deviceName);
+    setTemplatePayload(normalizeSettingsPayload(snapshot.payload, session));
+    setMessage(`Loaded latest settings from ${snapshot.deviceName}.`);
+  }
+
+  function handleLoadTemplate(nextTemplateId: string) {
+    const template = data.configTemplates.find((entry) => entry.id === nextTemplateId);
+    setTemplateId(nextTemplateId);
+    if (!template) return;
+
+    setTemplateName(template.name);
+    setTemplateSourceDeviceId(template.sourceDeviceId);
+    setTemplateSourceDeviceName(template.sourceDeviceName);
+    setTemplatePayload(normalizeSettingsPayload(template.settingsPayload, session));
+    setMessage(`Loaded template ${template.name}.`);
+  }
+
+  function handleNewTemplate() {
+    setTemplateId("");
+    setTemplateName("");
+    setTemplateSourceDeviceId(null);
+    setTemplateSourceDeviceName(null);
+    setTemplatePayload(createBlankSettingsPayload(session));
+    setMessage("");
+  }
+
+  function updatePayload(updater: (payload: SettingsExportPayload) => SettingsExportPayload) {
+    setTemplatePayload((current) => updater(current));
+  }
+
+  async function handleSaveTemplate() {
+    setSavingTemplate(true);
+    setMessage("");
+    try {
+      const saved = await saveOwnerConfigTemplate({
+        session,
+        templateId: templateId || undefined,
+        name: templateName,
+        sourceDeviceId: templateSourceDeviceId,
+        sourceDeviceName: templateSourceDeviceName,
+        settingsPayload: preparePayloadForSave(templatePayload),
+      });
+      setTemplateId(saved.id);
+      setMessage(`Saved template ${saved.name}.`);
+      await onRefresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not save template.");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }
+
+  async function handleDeleteTemplate() {
+    if (!templateId || !selectedTemplate) return;
+    setMessage("");
+    try {
+      await deleteOwnerConfigTemplate(session, templateId);
+      handleNewTemplate();
+      setMessage("Template deleted.");
+      await onRefresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not delete template.");
+    }
+  }
+
   async function handleRequestSync() {
-    if (!selectedSnapshot) return;
     setSubmitting(true);
     setMessage("");
     try {
       await createOwnerConfigSyncRequest({
         session,
-        sourceDeviceId: selectedSnapshot.deviceId,
+        sourceDeviceId: templateSourceDeviceId,
         targetDeviceIds: selectedDevices,
-        settingsPayload: selectedSnapshot.payload,
+        settingsPayload: preparePayloadForSave(templatePayload),
       });
-      setMessage("Settings sync requested.");
+      setMessage("Settings sync requested. Devices will show pending until the POS accepts the push.");
       setSelectedDevices([]);
+      setIsPushModalOpen(false);
       await onRefresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not request settings sync.");
@@ -422,53 +527,268 @@ function ConfigSyncSection({ data, onRefresh, session }: { data: OwnerDashboardD
   }
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
-      <DashboardPanel title="Config Snapshots" icon={<Settings2 size={19} />}>
-        {data.configSnapshots.length === 0 ? <EmptyText>No device config snapshots have uploaded yet.</EmptyText> : (
-          <div className="space-y-2">
-            <div className="rounded-lg border border-stone-200 bg-white p-3 text-sm">
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-500">Last settings change</p>
-              <p className="mt-1 font-bold">
-                {lastSettingsChange?.settingsChangedAt ? formatDateTime(lastSettingsChange.settingsChangedAt) : "Not available"}
-              </p>
-              <p className="text-stone-600">
-                Source: <span className="font-semibold">{lastSettingsChange?.settingsChangeOrigin === "push" ? "PUSH" : "POS"}</span>
-                {lastSettingsChange ? ` / ${lastSettingsChange.deviceName}` : ""}
-              </p>
-            </div>
-            <Select label="Source" value={effectiveSourceSnapshotId} onChange={setSourceSnapshotId} options={data.configSnapshots.map((snapshot) => ({ value: snapshot.id, label: `${snapshot.deviceName} / ${formatDateTime(snapshot.uploadedAt)}` }))} />
-            <div className="rounded-lg bg-stone-50 p-3 text-sm text-stone-700">
-              Source device: <span className="font-bold">{selectedSnapshot?.deviceName}</span><br />
-              Last changed: {selectedSnapshot?.settingsChangedAt ? formatDateTime(selectedSnapshot.settingsChangedAt) : "Not available"}<br />
-              Change source: <span className="font-bold">{selectedSnapshot?.settingsChangeOrigin === "push" ? "PUSH" : "POS"}</span><br />
-              Exported: {selectedSnapshot ? formatDateTime(selectedSnapshot.exportedAt) : "Not available"}<br />
-              Uploaded: {selectedSnapshot ? formatDateTime(selectedSnapshot.uploadedAt) : "Not available"}
-            </div>
-          </div>
-        )}
+    <div className="grid gap-4">
+      <DashboardPanel title="Registered Device Config" icon={<Laptop size={19} />}>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {data.devices.length === 0 ? <EmptyText>No registered devices available.</EmptyText> : data.devices.map((device, index) => {
+            const latestSnapshot = latestSnapshotForDevice(device);
+            const latestRequest = latestRequestByDevice.get(device.id);
+            const hasPendingRequest = latestRequest?.status === "requested" || latestRequest?.status === "seen";
+            return (
+              <div key={device.id} className="rounded-lg border border-stone-200 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-500">Device {index + 1} of {data.devices.length}</p>
+                    <h3 className="mt-1 text-lg font-black">{device.deviceName}</h3>
+                    <p className="text-sm text-stone-600">Belongs to {session.businessName}</p>
+                    <p className="text-xs text-stone-500">Code {device.deviceCode}</p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <StatusPill tone={device.status === "active" ? "success" : "muted"}>{device.status}</StatusPill>
+                    {hasPendingRequest ? <StatusPill tone="warning">pending</StatusPill> : null}
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-2 rounded-lg bg-stone-50 p-3 text-sm">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-stone-500">Last Config Sync</p>
+                    <p className="font-semibold">{latestSnapshot ? formatDateTime(latestSnapshot.uploadedAt) : "Not synced yet"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-stone-500">Source</p>
+                    <p className="font-semibold">{latestSnapshot ? (latestSnapshot.settingsChangeOrigin === "push" ? "PUSH" : "POS") : "Not available"}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleCheckDevice(device)}
+                  className="mt-3 flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-stone-300 px-3 text-sm font-bold"
+                >
+                  <Check size={16} />
+                  Check
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </DashboardPanel>
 
-      <DashboardPanel title="Request Device Sync" icon={<RefreshCw size={19} />}>
-        <div className="space-y-2">
-          {data.devices.filter((device) => device.status === "active").length === 0 ? <EmptyText>No active target devices available.</EmptyText> : data.devices.filter((device) => device.status === "active").map((device) => (
-            <label key={device.id} className="flex min-h-11 items-center gap-3 rounded-lg border border-stone-200 px-3">
-              <input type="checkbox" checked={selectedDevices.includes(device.id)} onChange={() => toggleDevice(device.id)} className="size-4" />
-              <span className="font-semibold">{device.deviceName}</span>
-              <span className="text-sm text-stone-500">Device {device.deviceCode}</span>
-            </label>
-          ))}
+      <DashboardPanel title="Settings Editor" icon={<Settings2 size={19} />} action={
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={handleNewTemplate} className="flex min-h-10 items-center gap-2 rounded-lg border border-stone-300 px-3 text-sm font-bold">
+            <Plus size={16} />
+            New
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsPushModalOpen(true)}
+            className="flex min-h-10 items-center gap-2 rounded-lg bg-stone-950 px-3 text-sm font-bold text-white"
+          >
+            <RefreshCw size={16} />
+            Push to Devices
+          </button>
         </div>
-        <button type="button" disabled={!selectedSnapshot || selectedDevices.length === 0 || submitting} onClick={() => void handleRequestSync()} className="mt-3 min-h-11 rounded-lg bg-stone-950 px-4 font-bold text-white disabled:bg-stone-300">
-          {submitting ? "Requesting..." : "Request Sync"}
-        </button>
+      }>
+        <div className="grid gap-4">
+          <div className="grid gap-3 lg:grid-cols-2">
+            <Select
+              label="Saved Template"
+              value={templateId}
+              onChange={handleLoadTemplate}
+              options={[{ value: "", label: "Manual / unsaved" }, ...data.configTemplates.map((template) => ({ value: template.id, label: template.name }))]}
+            />
+            <TextInput label="Template name" value={templateName} onChange={setTemplateName} />
+          </div>
+          <section className="mx-auto grid w-full max-w-7xl gap-4 px-3 py-3 sm:px-4 sm:py-4 xl:grid-cols-[1fr_1fr]">
+            <div className="space-y-4">
+            <EditorBlock icon={<ShoppingBag size={21} />} title="Shop">
+              <TextInput label="Shop name" value={templatePayload.data.settings.shopName} onChange={(value) => updatePayload((payload) => updateSettings(payload, { shopName: value }))} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ColorInput label="Primary color" value={templatePayload.data.settings.primaryColor} onChange={(value) => updatePayload((payload) => updateSettings(payload, { primaryColor: value }))} />
+                <ColorInput label="Secondary color" value={templatePayload.data.settings.secondaryColor} onChange={(value) => updatePayload((payload) => updateSettings(payload, { secondaryColor: value }))} />
+              </div>
+            </EditorBlock>
+
+            <EditorBlock icon={<MonitorSmartphone size={21} />} title="Device & Sync">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-lg bg-white px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-stone-500">Template Source</p>
+                  <p className="mt-1 font-bold text-stone-950">{templateSourceDeviceName ?? "Manual"}</p>
+                </div>
+                <div className="rounded-lg bg-white px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-stone-500">Saved Template</p>
+                  <p className="mt-1 font-bold text-stone-950">{selectedTemplate?.name ?? (templateName || "Unsaved")}</p>
+                </div>
+              </div>
+            </EditorBlock>
+
+          <EditorBlock icon={<FolderOpen size={21} />} title="Categories">
+            <div className="grid gap-2">
+              {templatePayload.data.categories.map((category) => (
+                <div key={category.id} className="grid gap-2 rounded-lg border border-stone-200 p-3 sm:grid-cols-[1fr_9rem_auto] sm:items-end">
+                  <TextInput label="Name" value={category.name} onChange={(value) => updatePayload((payload) => updateCategory(payload, category.id, { name: value }))} />
+                  <ColorInput label="Color" value={category.defaultColor} onChange={(value) => updatePayload((payload) => updateCategory(payload, category.id, { defaultColor: value }))} />
+                  <button type="button" onClick={() => updatePayload((payload) => deleteCategoryFromPayload(payload, category.id))} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700">
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => updatePayload(addCategoryToPayload)} className="min-h-10 rounded-lg border border-stone-300 px-3 text-sm font-bold">
+              Add Category
+            </button>
+          </EditorBlock>
+
+          <EditorBlock icon={<ShoppingCart size={21} />} title="Items">
+            <div className="grid gap-2">
+              {templatePayload.data.items.filter((item) => !item.isAddOn).map((item) => (
+                <div key={item.id} className="grid gap-2 rounded-lg border border-stone-200 p-3 lg:grid-cols-[1fr_8rem_12rem_auto_auto] lg:items-end">
+                  <TextInput label="Name" value={item.name} onChange={(value) => updatePayload((payload) => updateItem(payload, item.id, { name: value }))} />
+                  <NumberInput label="Price" value={item.price} onChange={(value) => updatePayload((payload) => updateItem(payload, item.id, { price: Math.max(0, value) }))} />
+                  <Select
+                    label="Category"
+                    value={item.categoryId ?? ""}
+                    onChange={(value) => updatePayload((payload) => updateItem(payload, item.id, { categoryId: value || null }))}
+                    options={[{ value: "", label: "Uncategorized" }, ...templatePayload.data.categories.map((category) => ({ value: category.id, label: category.name }))]}
+                  />
+                  <SettingsToggleRow disabled={false} icon={<X size={20} />} label="Out" checked={item.isOutOfStock} onChange={(checked) => updatePayload((payload) => updateItem(payload, item.id, { isOutOfStock: checked }))} />
+                  <button type="button" onClick={() => updatePayload((payload) => deleteItemFromPayload(payload, item.id))} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700">
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => updatePayload(addItemToPayload)} className="min-h-10 rounded-lg border border-stone-300 px-3 text-sm font-bold">
+              Add Item
+            </button>
+          </EditorBlock>
+
+          <EditorBlock icon={<ListPlus size={21} />} title="Modifiers">
+            <div className="grid gap-2">
+              {templatePayload.data.modifiers.length === 0 ? <EmptyText>No modifiers configured.</EmptyText> : templatePayload.data.modifiers.map((modifier) => (
+                <div key={modifier.id} className="grid gap-2 rounded-lg border border-stone-200 p-3 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+                  <TextInput label="Label" value={modifier.label} onChange={(value) => updatePayload((payload) => updateModifier(payload, modifier.id, { label: value }))} />
+                  <TextInput label="Options" value={modifier.options.join(", ")} onChange={(value) => updatePayload((payload) => updateModifier(payload, modifier.id, { options: value.split(",").map((option) => option.trim()).filter(Boolean) }))} />
+                  <button type="button" onClick={() => updatePayload((payload) => deleteModifierFromPayload(payload, modifier.id))} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700">
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => updatePayload(addModifierToPayload)} className="min-h-10 rounded-lg border border-stone-300 px-3 text-sm font-bold">
+              Add Modifier
+            </button>
+          </EditorBlock>
+
+          <EditorBlock icon={<Link2 size={21} />} title="Add-ons">
+            <div className="grid gap-2">
+              {templatePayload.data.items.filter((item) => item.isAddOn).length === 0 ? <EmptyText>No add-ons configured.</EmptyText> : templatePayload.data.items.filter((item) => item.isAddOn).map((item) => (
+                <div key={item.id} className="grid gap-2 rounded-lg border border-stone-200 p-3 lg:grid-cols-[1fr_8rem_auto] lg:items-end">
+                  <TextInput label="Name" value={item.name} onChange={(value) => updatePayload((payload) => updateItem(payload, item.id, { name: value }))} />
+                  <NumberInput label="Price" value={item.price} onChange={(value) => updatePayload((payload) => updateItem(payload, item.id, { price: Math.max(0, value) }))} />
+                  <button type="button" onClick={() => updatePayload((payload) => deleteItemFromPayload(payload, item.id))} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700">
+                    Delete
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => updatePayload(addAddOnItemToPayload)} className="min-h-10 rounded-lg border border-stone-300 px-3 text-sm font-bold">
+              Add Add-on
+            </button>
+          </EditorBlock>
+            </div>
+
+            <div className="space-y-4">
+            <EditorBlock icon={<SlidersHorizontal size={21} />} title="Adjustments">
+              <div className="grid gap-2">
+                {templatePayload.data.adjustments.length === 0 ? <EmptyText>No additional charges configured.</EmptyText> : templatePayload.data.adjustments.map((adjustment) => (
+                  <div key={adjustment.id} className="grid gap-2 rounded-lg border border-stone-200 p-3 lg:grid-cols-[1fr_11rem_8rem_auto_auto] lg:items-end">
+                    <TextInput label="Label" value={adjustment.label} onChange={(value) => updatePayload((payload) => updateAdjustment(payload, adjustment.id, { label: value }))} />
+                    <Select
+                      label="Type"
+                      value={adjustment.type}
+                      onChange={(value) => updatePayload((payload) => updateAdjustment(payload, adjustment.id, { type: value as "percentage" | "flat" }))}
+                      options={[{ value: "percentage", label: "Percentage" }, { value: "flat", label: "Flat amount" }]}
+                    />
+                    <NumberInput label={adjustment.type === "flat" ? "Amount" : "Percent"} value={adjustment.type === "flat" ? adjustment.value / 100 : adjustment.value} onChange={(value) => updatePayload((payload) => updateAdjustment(payload, adjustment.id, { value: adjustment.type === "flat" ? Math.round(Math.max(0, value) * 100) : Math.max(0, value) }))} />
+                    <SettingsToggleRow disabled={false} icon={<Check size={20} />} label="Auto" checked={adjustment.enabled} onChange={(checked) => updatePayload((payload) => updateAdjustment(payload, adjustment.id, { enabled: checked }))} />
+                    <button type="button" onClick={() => updatePayload((payload) => deleteAdjustmentFromPayload(payload, adjustment.id))} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700">
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={() => updatePayload(addAdjustmentToPayload)} className="min-h-10 rounded-lg border border-stone-300 px-3 text-sm font-bold">
+                Add Adjustment
+              </button>
+            </EditorBlock>
+
+            <EditorBlock icon={<BadgePercent size={21} />} title="Discounts">
+              <SettingsToggleRow disabled={false} icon={<BadgePercent size={20} />} label="Enable checkout discounts" checked={templatePayload.data.settings.discountEnabled} onChange={(checked) => updatePayload((payload) => updateSettings(payload, { discountEnabled: checked }))} />
+              <div className="grid gap-2">
+                {templatePayload.data.discountTemplates.length === 0 ? <EmptyText>No discount templates configured.</EmptyText> : templatePayload.data.discountTemplates.map((discount) => (
+                  <div key={discount.id} className="grid gap-2 rounded-lg border border-stone-200 p-3 lg:grid-cols-[1fr_11rem_8rem_auto] lg:items-end">
+                    <TextInput label="Label" value={discount.label} onChange={(value) => updatePayload((payload) => updateDiscountTemplate(payload, discount.id, { label: value }))} />
+                    <Select
+                      label="Type"
+                      value={discount.type}
+                      onChange={(value) => updatePayload((payload) => updateDiscountTemplate(payload, discount.id, { type: value as "percentage" | "flat" }))}
+                      options={[{ value: "percentage", label: "Percentage" }, { value: "flat", label: "Flat amount" }]}
+                    />
+                    <NumberInput label={discount.type === "flat" ? "Amount" : "Percent"} value={discount.type === "flat" ? discount.value / 100 : discount.value} onChange={(value) => updatePayload((payload) => updateDiscountTemplate(payload, discount.id, { value: discount.type === "flat" ? Math.round(Math.max(0, value) * 100) : Math.max(0, value) }))} />
+                    <button type="button" onClick={() => updatePayload((payload) => deleteDiscountTemplateFromPayload(payload, discount.id))} className="min-h-10 rounded-lg border border-red-200 px-3 text-sm font-bold text-red-700">
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" onClick={() => updatePayload(addDiscountTemplateToPayload)} className="min-h-10 rounded-lg border border-stone-300 px-3 text-sm font-bold">
+                Add Discount Template
+              </button>
+            </EditorBlock>
+
+            <EditorBlock icon={<Percent size={21} />} title="Inclusive VAT">
+              <SettingsToggleRow disabled={false} icon={<Percent size={20} />} label="VAT Enabled" checked={templatePayload.data.settings.vatEnabled} onChange={(checked) => updatePayload((payload) => updateSettings(payload, { vatEnabled: checked }))} />
+              <NumberInput label="VAT Percentage" value={templatePayload.data.settings.vatPercentage} onChange={(value) => updatePayload((payload) => updateSettings(payload, { vatPercentage: Math.max(0, value) }))} />
+            </EditorBlock>
+
+            <EditorBlock icon={<CreditCard size={21} />} title="Payment Options">
+              <SettingsToggleRow disabled={templatePayload.data.settings.cashEnabled && !templatePayload.data.settings.cardEnabled} icon={<Banknote size={20} />} label="Cash" checked={templatePayload.data.settings.cashEnabled} onChange={(checked) => updatePayload((payload) => updateSettings(payload, { cashEnabled: checked }))} />
+              <SettingsToggleRow disabled={templatePayload.data.settings.cardEnabled && !templatePayload.data.settings.cashEnabled} icon={<CreditCard size={20} />} label="Card" checked={templatePayload.data.settings.cardEnabled} onChange={(checked) => updatePayload((payload) => updateSettings(payload, { cardEnabled: checked }))} />
+            </EditorBlock>
+            </div>
+          </section>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={savingTemplate}
+              onClick={() => void handleSaveTemplate()}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-lg bg-stone-950 px-4 font-bold text-white disabled:bg-stone-300"
+            >
+              <Save size={17} />
+              {savingTemplate ? "Saving..." : templateId ? "Save Template" : "Save New Template"}
+            </button>
+            <button
+              type="button"
+              disabled={!templateId || savingTemplate}
+              onClick={() => void handleDeleteTemplate()}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 px-4 font-bold text-red-700 disabled:border-stone-200 disabled:text-stone-300"
+            >
+              <Trash2 size={17} />
+              Delete Template
+            </button>
+          </div>
+        </div>
         {message ? <p className="mt-3 rounded-lg bg-stone-50 p-3 text-sm font-semibold text-stone-700">{message}</p> : null}
+      </DashboardPanel>
+
+      <DashboardPanel title="Recent Config Requests" icon={<RefreshCw size={19} />}>
         <div className="mt-4 space-y-2">
-          <h3 className="font-bold">Progress</h3>
           {data.configRequests.length === 0 ? <EmptyText>No config sync requests yet.</EmptyText> : data.configRequests.slice(0, 8).map((request) => (
             <div key={request.id} className="rounded-lg border border-stone-200 p-3 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-bold">{deviceName(data.devices, request.targetDeviceId)}</span>
-                <StatusPill tone={request.status === "applied" ? "success" : request.status === "failed" ? "danger" : "warning"}>{request.status}</StatusPill>
+                <StatusPill tone={configRequestTone(request.status)}>{request.status === "requested" || request.status === "seen" ? "pending" : request.status}</StatusPill>
               </div>
               <p className="mt-1 text-stone-600">Requested {formatDateTime(request.requestedAt)}</p>
               {request.lastError ? <p className="mt-1 font-semibold text-red-700">{request.lastError}</p> : null}
@@ -476,8 +796,434 @@ function ConfigSyncSection({ data, onRefresh, session }: { data: OwnerDashboardD
           ))}
         </div>
       </DashboardPanel>
+
+      {isPushModalOpen ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-lg bg-white p-4 shadow-xl">
+            <div className="flex items-start justify-between gap-3 border-b border-stone-200 pb-3">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-500">Push Settings</p>
+                <h3 className="text-lg font-black">Select Devices</h3>
+              </div>
+              <button type="button" onClick={() => setIsPushModalOpen(false)} className="grid size-10 place-items-center rounded-lg border border-stone-300" aria-label="Close push modal">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {activeDevices.length === 0 ? <EmptyText>No active devices available.</EmptyText> : activeDevices.map((device) => {
+                const latestRequest = latestRequestByDevice.get(device.id);
+                const hasPendingRequest = latestRequest?.status === "requested" || latestRequest?.status === "seen";
+                return (
+                  <label key={device.id} className="flex min-h-12 items-center gap-3 rounded-lg border border-stone-200 px-3">
+                    <input type="checkbox" checked={selectedDevices.includes(device.id)} onChange={() => toggleDevice(device.id)} className="size-4" />
+                    <span className="font-semibold">{device.deviceName}</span>
+                    <span className="text-sm text-stone-500">Device {device.deviceCode}</span>
+                    {hasPendingRequest ? <StatusPill tone="warning">pending</StatusPill> : null}
+                  </label>
+                );
+              })}
+            </div>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button type="button" onClick={() => setIsPushModalOpen(false)} className="min-h-11 rounded-lg border border-stone-300 px-4 font-bold">
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!canApply || submitting}
+                onClick={() => void handleRequestSync()}
+                className="min-h-11 rounded-lg bg-stone-950 px-4 font-bold text-white disabled:bg-stone-300"
+              >
+                {submitting ? "Requesting..." : "Proceed"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function configRequestTone(status: string): "success" | "warning" | "danger" | "muted" {
+  if (status === "applied") return "success";
+  if (status === "failed") return "danger";
+  if (status === "accepted") return "muted";
+  return "warning";
+}
+
+function EditorBlock({ children, icon, title }: { children: ReactNode; icon: ReactNode; title: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <CollapsibleSection icon={icon} isOpen={isOpen} title={title} onToggle={() => setIsOpen((current) => !current)}>
+      <div className="grid gap-3">{children}</div>
+    </CollapsibleSection>
+  );
+}
+
+function ColorInput({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-bold uppercase tracking-[0.12em] text-stone-500">{label}</span>
+      <div className="mt-1 flex min-h-11 items-center gap-2 rounded-lg border border-stone-300 bg-white px-2">
+        <input type="color" value={value} onChange={(event) => onChange(event.target.value)} className="size-8 rounded border-0 bg-transparent p-0" />
+        <input value={value} onChange={(event) => onChange(event.target.value)} className="min-w-0 flex-1 text-sm font-semibold outline-none" />
+      </div>
+    </label>
+  );
+}
+
+function NumberInput({ label, onChange, value }: { label: string; onChange: (value: number) => void; value: number }) {
+  return (
+    <label className="block">
+      <span className="text-xs font-bold uppercase tracking-[0.12em] text-stone-500">{label}</span>
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={Number.isFinite(value) ? value : 0}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="mt-1 min-h-11 w-full rounded-lg border border-stone-300 px-3 text-sm font-semibold outline-none focus:border-[#51A3A3]"
+      />
+    </label>
+  );
+}
+
+function createBlankSettingsPayload(session: OwnerSession): SettingsExportPayload {
+  const now = new Date().toISOString();
+  return {
+    format: "brightly-settings",
+    version: 1,
+    exportedAt: now,
+    syncOrigin: "push",
+    settingsChange: {
+      changedAt: now,
+      origin: "push",
+    },
+    source: {
+      ownerId: session.ownerId,
+      shopId: session.shopId,
+      deviceId: null,
+    },
+    data: {
+      settings: {
+        id: "main",
+        shopName: session.businessName || "Coffee Bar",
+        primaryColor: "#d97706",
+        secondaryColor: "#fffaf3",
+        settingsUpdatedAt: now,
+        settingsChangeOrigin: "push",
+        cashEnabled: true,
+        cardEnabled: true,
+        vatEnabled: false,
+        vatPercentage: 12,
+        vatInclusive: true,
+        discountEnabled: true,
+      },
+      categories: [],
+      items: [],
+      itemVariants: [],
+      modifiers: [],
+      itemModifiers: [],
+      itemAddOns: [],
+      adjustments: [],
+      discountTemplates: [],
+    },
+  };
+}
+
+function normalizeSettingsPayload(payload: unknown, session: OwnerSession): SettingsExportPayload {
+  const fallback = createBlankSettingsPayload(session);
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+
+  const candidate = payload as Partial<SettingsExportPayload>;
+  if (candidate.format !== "brightly-settings" || candidate.version !== 1 || !candidate.data) {
+    return fallback;
+  }
+
+  return {
+    ...fallback,
+    ...candidate,
+    source: {
+      ...fallback.source,
+      ...candidate.source,
+    },
+    data: {
+      ...fallback.data,
+      ...candidate.data,
+      settings: {
+        ...fallback.data.settings,
+        ...candidate.data.settings,
+        id: "main",
+      },
+      categories: Array.isArray(candidate.data.categories) ? candidate.data.categories : [],
+      items: Array.isArray(candidate.data.items) ? candidate.data.items : [],
+      itemVariants: Array.isArray(candidate.data.itemVariants) ? candidate.data.itemVariants : [],
+      modifiers: Array.isArray(candidate.data.modifiers) ? candidate.data.modifiers : [],
+      itemModifiers: Array.isArray(candidate.data.itemModifiers) ? candidate.data.itemModifiers : [],
+      itemAddOns: Array.isArray(candidate.data.itemAddOns) ? candidate.data.itemAddOns : [],
+      adjustments: Array.isArray(candidate.data.adjustments) ? candidate.data.adjustments : [],
+      discountTemplates: Array.isArray(candidate.data.discountTemplates) ? candidate.data.discountTemplates : [],
+    },
+  };
+}
+
+function preparePayloadForSave(payload: SettingsExportPayload): SettingsExportPayload {
+  const now = new Date().toISOString();
+  return {
+    ...payload,
+    exportedAt: now,
+    syncOrigin: "push",
+    settingsChange: {
+      changedAt: now,
+      origin: "push",
+    },
+    data: {
+      ...payload.data,
+      settings: {
+        ...payload.data.settings,
+        id: "main",
+        vatInclusive: true,
+        settingsUpdatedAt: now,
+        settingsChangeOrigin: "push",
+      },
+    },
+  };
+}
+
+function updateSettings(payload: SettingsExportPayload, settings: Partial<SettingsExportPayload["data"]["settings"]>) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      settings: {
+        ...payload.data.settings,
+        ...settings,
+      },
+    },
+  };
+}
+
+function updateCategory(payload: SettingsExportPayload, categoryId: string, changes: Partial<Category>) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      categories: payload.data.categories.map((category) => category.id === categoryId ? { ...category, ...changes } : category),
+    },
+  };
+}
+
+function addCategoryToPayload(payload: SettingsExportPayload) {
+  const category: Category = {
+    id: `cat-${crypto.randomUUID()}`,
+    name: "New Category",
+    defaultColor: "#e5e7eb",
+    createdAt: new Date().toISOString(),
+  };
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      categories: [...payload.data.categories, category],
+    },
+  };
+}
+
+function deleteCategoryFromPayload(payload: SettingsExportPayload, categoryId: string) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      categories: payload.data.categories.filter((category) => category.id !== categoryId),
+      items: payload.data.items.map((item) => item.categoryId === categoryId ? { ...item, categoryId: null } : item),
+    },
+  };
+}
+
+function updateItem(payload: SettingsExportPayload, itemId: string, changes: Partial<Item>) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      items: payload.data.items.map((item) => item.id === itemId ? { ...item, ...changes } : item),
+    },
+  };
+}
+
+function addItemToPayload(payload: SettingsExportPayload) {
+  const item: Item = {
+    id: `item-${crypto.randomUUID()}`,
+    name: "New Item",
+    price: 0,
+    categoryId: payload.data.categories[0]?.id ?? null,
+    isOutOfStock: false,
+    isAddOn: false,
+    createdAt: new Date().toISOString(),
+  };
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      items: [...payload.data.items, item],
+    },
+  };
+}
+
+function deleteItemFromPayload(payload: SettingsExportPayload, itemId: string) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      items: payload.data.items.filter((item) => item.id !== itemId),
+      itemVariants: payload.data.itemVariants.filter((variant) => variant.itemId !== itemId),
+      itemModifiers: payload.data.itemModifiers.filter((link) => link.itemId !== itemId),
+      itemAddOns: payload.data.itemAddOns.filter((link) => link.itemId !== itemId && link.addOnItemId !== itemId),
+    },
+  };
+}
+
+function addAddOnItemToPayload(payload: SettingsExportPayload) {
+  const item: Item = {
+    id: `addon-${crypto.randomUUID()}`,
+    name: "New Add-on",
+    price: 0,
+    categoryId: null,
+    isOutOfStock: false,
+    isAddOn: true,
+    createdAt: new Date().toISOString(),
+  };
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      items: [...payload.data.items, item],
+    },
+  };
+}
+
+function updateModifier(payload: SettingsExportPayload, modifierId: string, changes: Partial<Modifier>) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      modifiers: payload.data.modifiers.map((modifier) => modifier.id === modifierId ? { ...modifier, ...changes } : modifier),
+    },
+  };
+}
+
+function addModifierToPayload(payload: SettingsExportPayload) {
+  const modifier: Modifier = {
+    id: `mod-${crypto.randomUUID()}`,
+    label: "New Modifier",
+    options: ["Option 1"],
+    createdAt: new Date().toISOString(),
+  };
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      modifiers: [...payload.data.modifiers, modifier],
+    },
+  };
+}
+
+function deleteModifierFromPayload(payload: SettingsExportPayload, modifierId: string) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      modifiers: payload.data.modifiers.filter((modifier) => modifier.id !== modifierId),
+      itemModifiers: payload.data.itemModifiers.filter((link) => link.modifierId !== modifierId),
+    },
+  };
+}
+
+function updateDiscountTemplate(
+  payload: SettingsExportPayload,
+  discountId: string,
+  changes: Partial<SettingsExportPayload["data"]["discountTemplates"][number]>,
+) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      discountTemplates: payload.data.discountTemplates.map((discount) =>
+        discount.id === discountId ? { ...discount, ...changes } : discount,
+      ),
+    },
+  };
+}
+
+function addDiscountTemplateToPayload(payload: SettingsExportPayload) {
+  const discount: SettingsExportPayload["data"]["discountTemplates"][number] = {
+    id: `disc-${crypto.randomUUID()}`,
+    label: "New Discount",
+    type: "percentage",
+    value: 0,
+    createdAt: new Date().toISOString(),
+  };
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      discountTemplates: [...payload.data.discountTemplates, discount],
+    },
+  };
+}
+
+function deleteDiscountTemplateFromPayload(payload: SettingsExportPayload, discountId: string) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      discountTemplates: payload.data.discountTemplates.filter((discount) => discount.id !== discountId),
+    },
+  };
+}
+
+function updateAdjustment(
+  payload: SettingsExportPayload,
+  adjustmentId: string,
+  changes: Partial<SettingsExportPayload["data"]["adjustments"][number]>,
+) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      adjustments: payload.data.adjustments.map((adjustment) =>
+        adjustment.id === adjustmentId ? { ...adjustment, ...changes } : adjustment,
+      ),
+    },
+  };
+}
+
+function addAdjustmentToPayload(payload: SettingsExportPayload) {
+  const adjustment: SettingsExportPayload["data"]["adjustments"][number] = {
+    id: `adj-${crypto.randomUUID()}`,
+    label: "New Adjustment",
+    type: "percentage",
+    value: 0,
+    enabled: true,
+    createdAt: new Date().toISOString(),
+  };
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      adjustments: [...payload.data.adjustments, adjustment],
+    },
+  };
+}
+
+function deleteAdjustmentFromPayload(payload: SettingsExportPayload, adjustmentId: string) {
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      adjustments: payload.data.adjustments.filter((adjustment) => adjustment.id !== adjustmentId),
+    },
+  };
 }
 
 function ProfileSection({ onSessionChange, session }: { onSessionChange: (session: OwnerSession) => void; session: OwnerSession }) {

@@ -260,9 +260,25 @@ Owners can disable a registered POS device without deleting its historical recor
 
 POS devices upload configuration snapshots that can be viewed in the owner dashboard. These snapshots represent menu and settings data from a device at a specific point in time and include whether the change came from the POS or from an accepted owner PUSH.
 
+### Config Templates
+
+Owners can save reusable settings templates from the POS-style Settings Editor or from a checked device snapshot. In Supabase-backed environments, templates are saved to owner-scoped config template records. In local development fallback, templates are saved in browser storage.
+
+### Check Device Settings
+
+Each registered device on the Config Sync page has a Check action. Check loads that device's latest uploaded configuration snapshot into the Settings Editor so the owner can inspect, edit, save, or apply it. The editor follows the POS app Settings page accordion structure and includes shop, device/source summary, category, item, modifier, add-on, adjustment, discount template, VAT, and payment controls.
+
 ### Push Settings to Devices
 
 Owners can select a configuration snapshot and request selected active devices to apply it. This allows menu and settings changes to be distributed across devices without manually importing settings on each POS device. POS users cannot choose later; they can only accept the owner push when notified.
+
+### Multi-Device Config Apply
+
+Owners can click Push to Devices from the Settings Editor, select one or more active devices in a modal, and click Proceed to push the current settings template to all selected devices.
+
+### Pending Config Push
+
+The Config Sync page shows a pending pill for devices with requested or seen config pushes that have not yet been accepted by the POS.
 
 ### Config Sync Progress
 

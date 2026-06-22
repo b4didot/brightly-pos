@@ -43,11 +43,23 @@ export type DeviceConfigSnapshot = {
   payload: unknown;
 };
 
+export type OwnerConfigTemplate = {
+  id: string;
+  shopId: string;
+  name: string;
+  sourceDeviceId: string | null;
+  sourceDeviceName: string | null;
+  settingsPayload: unknown;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type OwnerDashboardData = {
   devices: OwnerDevice[];
   transactions: OwnerTransactionRecord[];
   configSnapshots: DeviceConfigSnapshot[];
   configRequests: DeviceConfigSyncRequest[];
+  configTemplates: OwnerConfigTemplate[];
 };
 
 export type OwnerReportFilters = {
@@ -83,13 +95,25 @@ type ConfigRequestRow = {
   settings_payload: unknown;
 };
 
+type ConfigTemplateRow = {
+  id: string;
+  shop_id: string;
+  name: string;
+  source_device_id: string | null;
+  source_device_name: string | null;
+  settings_payload: unknown;
+  created_at: string;
+  updated_at: string;
+};
+
 const localDisabledDevicesKey = "brightly-owner-disabled-devices";
 const localConfigRequestsKey = "brightly-owner-config-requests";
+const localConfigTemplatesKey = "brightly-owner-config-templates";
 
 export async function loadOwnerDashboardData(session: OwnerSession): Promise<OwnerDashboardData> {
   if (hasSupabaseConfig()) {
     const supabase = getSupabaseClient();
-    const [{ data: devices, error: devicesError }, { data: syncEvents, error: eventsError }, snapshotsResult, requestsResult] =
+    const [{ data: devices, error: devicesError }, { data: syncEvents, error: eventsError }, snapshotsResult, requestsResult, templatesResult] =
       await Promise.all([
         supabase
           .from("devices")
@@ -112,6 +136,11 @@ export async function loadOwnerDashboardData(session: OwnerSession): Promise<Own
           .select("id, shop_id, source_device_id, target_device_id, status, requested_at, seen_at, accepted_at, applied_at, failed_at, last_error, settings_payload")
           .eq("shop_id", session.shopId)
           .order("requested_at", { ascending: false }),
+        supabase
+          .from("owner_config_templates")
+          .select("id, shop_id, name, source_device_id, source_device_name, settings_payload, created_at, updated_at")
+          .eq("shop_id", session.shopId)
+          .order("updated_at", { ascending: false }),
       ]);
 
     if (devicesError) throw new Error(devicesError.message);
@@ -119,11 +148,15 @@ export async function loadOwnerDashboardData(session: OwnerSession): Promise<Own
 
     const snapshots = isMissingOptionalOwnerTableError(snapshotsResult.error) ? [] : snapshotsResult.data;
     const requests = isMissingOptionalOwnerTableError(requestsResult.error) ? [] : requestsResult.data;
+    const templates = isMissingOptionalOwnerTableError(templatesResult.error) ? [] : templatesResult.data;
     if (snapshotsResult.error && !isMissingOptionalOwnerTableError(snapshotsResult.error)) {
       throw new Error(snapshotsResult.error.message);
     }
     if (requestsResult.error && !isMissingOptionalOwnerTableError(requestsResult.error)) {
       throw new Error(requestsResult.error.message);
+    }
+    if (templatesResult.error && !isMissingOptionalOwnerTableError(templatesResult.error)) {
+      throw new Error(templatesResult.error.message);
     }
 
     const eventRows = (syncEvents ?? []) as SyncEventRow[];
@@ -134,8 +167,7 @@ export async function loadOwnerDashboardData(session: OwnerSession): Promise<Own
       }
     });
 
-    return {
-      devices: (devices ?? []).map((device) => ({
+    const ownerDevices: OwnerDevice[] = (devices ?? []).map((device) => ({
         id: device.id,
         deviceCode: device.device_code,
         deviceName: device.device_name,
@@ -143,9 +175,9 @@ export async function loadOwnerDashboardData(session: OwnerSession): Promise<Own
         registeredAt: device.registered_at,
         lastSeenAt: device.last_seen_at,
         lastTransactionSyncAt: lastTransactionSyncByDevice.get(device.id) ?? null,
-      })),
-      transactions: parseTransactionEvents(eventRows),
-      configSnapshots: (snapshots ?? []).map((snapshot) => ({
+      }));
+    const configSnapshots = mergeConfigSnapshots(
+      (snapshots ?? []).map((snapshot) => ({
         id: snapshot.id,
         shopId: snapshot.shop_id,
         deviceId: snapshot.device_id,
@@ -157,14 +189,26 @@ export async function loadOwnerDashboardData(session: OwnerSession): Promise<Own
         settingsChangeOrigin: getSettingsChangeOrigin(snapshot.payload),
         payload: snapshot.payload,
       })),
+      parseConfigSnapshotEvents(eventRows, session.shopId, ownerDevices),
+    );
+
+    return {
+      devices: ownerDevices,
+      transactions: parseTransactionEvents(eventRows),
+      configSnapshots,
       configRequests: (requests ?? []).map(mapConfigRequestRow),
+      configTemplates: (templates ?? []).map(mapConfigTemplateRow),
     };
   }
 
   if (hasApiBaseUrl() && session.accessToken) {
-    return apiRequest<OwnerDashboardData>(`/api/shops/${session.shopId}/dashboard`, {
+    const dashboardData = await apiRequest<OwnerDashboardData>(`/api/shops/${session.shopId}/dashboard`, {
       token: session.accessToken,
     });
+    return {
+      ...dashboardData,
+      configTemplates: dashboardData.configTemplates ?? [],
+    };
   }
 
   return loadLocalDashboardData(session);
@@ -199,6 +243,35 @@ function getSettingsChangeOrigin(payload: unknown): "pos" | "push" {
   }
 
   return getSettingsSyncOrigin(payload);
+}
+
+function parseConfigSnapshotEvents(events: SyncEventRow[], shopId: string, devices: OwnerDevice[]): DeviceConfigSnapshot[] {
+  const devicesById = new Map(devices.map((device) => [device.id, device]));
+  return events
+    .filter((event) => event.event_type === "settings.snapshot")
+    .map((event) => {
+      const device = devicesById.get(event.device_id);
+      const payload = event.payload as { exportedAt?: unknown };
+      const exportedAt = typeof payload?.exportedAt === "string" ? payload.exportedAt : event.device_created_at ?? event.created_at;
+      return {
+        id: `event-${event.id}`,
+        shopId,
+        deviceId: event.device_id,
+        deviceName: device?.deviceName ?? "Unknown device",
+        exportedAt,
+        uploadedAt: event.created_at,
+        syncOrigin: getSettingsSyncOrigin(event.payload),
+        settingsChangedAt: getSettingsChangedAt(event.payload),
+        settingsChangeOrigin: getSettingsChangeOrigin(event.payload),
+        payload: event.payload,
+      };
+    });
+}
+
+function mergeConfigSnapshots(primary: DeviceConfigSnapshot[], fallback: DeviceConfigSnapshot[]) {
+  const seen = new Set(primary.map((snapshot) => `${snapshot.deviceId}:${snapshot.exportedAt}`));
+  return [...primary, ...fallback.filter((snapshot) => !seen.has(`${snapshot.deviceId}:${snapshot.exportedAt}`))]
+    .sort((left, right) => right.uploadedAt.localeCompare(left.uploadedAt));
 }
 
 export async function disableOwnerDevice(session: OwnerSession, deviceId: string) {
@@ -272,6 +345,108 @@ export async function createOwnerConfigSyncRequest(input: {
   }));
   writeJson(localConfigRequestsKey, [...created, ...requests]);
   return { requests: created };
+}
+
+export async function saveOwnerConfigTemplate(input: {
+  session: OwnerSession;
+  templateId?: string;
+  name: string;
+  sourceDeviceId: string | null;
+  sourceDeviceName: string | null;
+  settingsPayload: unknown;
+}) {
+  const name = input.name.trim();
+  if (!name) {
+    throw new Error("Template name is required.");
+  }
+
+  const now = new Date().toISOString();
+
+  if (hasSupabaseConfig() && input.session.accessToken) {
+    const supabase = getSupabaseClient();
+    if (input.templateId) {
+      const { data, error } = await supabase
+        .from("owner_config_templates")
+        .update({
+          name,
+          source_device_id: input.sourceDeviceId,
+          source_device_name: input.sourceDeviceName,
+          settings_payload: input.settingsPayload,
+          updated_at: now,
+        })
+        .eq("id", input.templateId)
+        .eq("shop_id", input.session.shopId)
+        .select("id, shop_id, name, source_device_id, source_device_name, settings_payload, created_at, updated_at")
+        .single();
+      if (error) throw new Error(error.message);
+      return mapConfigTemplateRow(data as ConfigTemplateRow);
+    }
+
+    const { data, error } = await supabase
+      .from("owner_config_templates")
+      .insert({
+        owner_id: input.session.ownerId,
+        shop_id: input.session.shopId,
+        name,
+        source_device_id: input.sourceDeviceId,
+        source_device_name: input.sourceDeviceName,
+        settings_payload: input.settingsPayload,
+      })
+      .select("id, shop_id, name, source_device_id, source_device_name, settings_payload, created_at, updated_at")
+      .single();
+    if (error) throw new Error(error.message);
+    return mapConfigTemplateRow(data as ConfigTemplateRow);
+  }
+
+  const templates = readJson<OwnerConfigTemplate[]>(localConfigTemplatesKey, []);
+  if (input.templateId) {
+    const nextTemplates = templates.map((template) =>
+      template.id === input.templateId && template.shopId === input.session.shopId
+        ? {
+            ...template,
+            name,
+            sourceDeviceId: input.sourceDeviceId,
+            sourceDeviceName: input.sourceDeviceName,
+            settingsPayload: input.settingsPayload,
+            updatedAt: now,
+          }
+        : template,
+    );
+    writeJson(localConfigTemplatesKey, nextTemplates);
+    const updated = nextTemplates.find((template) => template.id === input.templateId);
+    if (updated) return updated;
+  }
+
+  const created: OwnerConfigTemplate = {
+    id: `local-${crypto.randomUUID()}`,
+    shopId: input.session.shopId,
+    name,
+    sourceDeviceId: input.sourceDeviceId,
+    sourceDeviceName: input.sourceDeviceName,
+    settingsPayload: input.settingsPayload,
+    createdAt: now,
+    updatedAt: now,
+  };
+  writeJson(localConfigTemplatesKey, [created, ...templates]);
+  return created;
+}
+
+export async function deleteOwnerConfigTemplate(session: OwnerSession, templateId: string) {
+  if (hasSupabaseConfig() && session.accessToken) {
+    const { error } = await getSupabaseClient()
+      .from("owner_config_templates")
+      .delete()
+      .eq("shop_id", session.shopId)
+      .eq("id", templateId);
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  const templates = readJson<OwnerConfigTemplate[]>(localConfigTemplatesKey, []);
+  writeJson(
+    localConfigTemplatesKey,
+    templates.filter((template) => !(template.id === templateId && template.shopId === session.shopId)),
+  );
 }
 
 export async function updateOwnerProfile(input: {
@@ -499,6 +674,19 @@ function mapConfigRequestRow(row: ConfigRequestRow): DeviceConfigSyncRequest {
   };
 }
 
+function mapConfigTemplateRow(row: ConfigTemplateRow): OwnerConfigTemplate {
+  return {
+    id: row.id,
+    shopId: row.shop_id,
+    name: row.name,
+    sourceDeviceId: row.source_device_id,
+    sourceDeviceName: row.source_device_name,
+    settingsPayload: row.settings_payload,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 function loadLocalDashboardData(session: OwnerSession): OwnerDashboardData {
   const tokens = readJson<Array<{
     ownerId: string;
@@ -530,6 +718,7 @@ function loadLocalDashboardData(session: OwnerSession): OwnerDashboardData {
     transactions: [],
     configSnapshots: [],
     configRequests: readJson<DeviceConfigSyncRequest[]>(localConfigRequestsKey, []).filter((request) => request.shopId === session.shopId),
+    configTemplates: readJson<OwnerConfigTemplate[]>(localConfigTemplatesKey, []).filter((template) => template.shopId === session.shopId),
   };
 }
 
@@ -553,6 +742,7 @@ function isMissingOptionalOwnerTableError(error: { code?: string; message?: stri
     error.code === "PGRST205" ||
     error.message?.includes("schema cache") ||
     error.message?.includes("device_config_snapshots") ||
-    error.message?.includes("device_config_sync_requests")
+    error.message?.includes("device_config_sync_requests") ||
+    error.message?.includes("owner_config_templates")
   );
 }

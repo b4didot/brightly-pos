@@ -50,6 +50,7 @@ It creates:
 
 - `device_config_snapshots`
 - `device_config_sync_requests`
+- `owner_config_templates`
 
 It also enables row-level security for owner-readable tables. Edge Functions use
 server-side service credentials for privileged token burn, device credential,

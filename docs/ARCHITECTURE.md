@@ -46,7 +46,7 @@ High-level flow:
 
 The POS route loads local Dexie state, then blocks on the PWA device setup flow until the local `deviceRegistration` singleton has `registrationStatus = "registered"`. In production, the POS shell also requires installed PWA display mode; normal browser tabs continue showing setup/install guidance even if they share the same origin storage. Local development keeps browser POS access available for testing.
 
-The owner portal uses the service boundaries in `src/services/ownerPortal.ts` and `src/services/ownerDashboard.ts`. When Supabase frontend variables are configured, owner registration, login, token listing, token generation, device registration, dashboard devices, synced transaction reporting, config snapshots, and config sync requests use Supabase Auth, Supabase tables, and Edge Functions. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy backend API. Without either remote option, browser storage fallback keeps local development flows usable.
+The owner portal uses the service boundaries in `src/services/ownerPortal.ts` and `src/services/ownerDashboard.ts`. When Supabase frontend variables are configured, owner registration, login, token listing, token generation, device registration, dashboard devices, synced transaction reporting, config snapshots, owner config templates, and config sync requests use Supabase Auth, Supabase tables, and Edge Functions. Without Supabase, `VITE_BRIGHTLY_API_URL` can point to a legacy backend API. Without either remote option, browser storage fallback keeps local development flows usable.
 
 ## Main Views
 
@@ -93,7 +93,7 @@ The database name is:
 brightly-pos-v0
 ```
 
-The current Dexie schema version is `15`.
+The current Dexie schema version is `16`.
 
 `ensureDatabaseSeeded()` is called during store loading to create required default rows, seed starter catalog data when the local database is empty, and create the unregistered device/sync singleton rows.
 
@@ -145,7 +145,7 @@ Checkout and ticket state changes write local data first. The same Dexie transac
 
 Settings and menu configuration changes write local data first, stamp the settings singleton with `settingsUpdatedAt` and `settingsChangeOrigin`, then append `settings.snapshot` outbox rows using the same local-first queue. A registered POS device also queues a fresh settings snapshot when the POS shell launches, but launch snapshots do not rewrite the actual settings change metadata. When online, settings changes request an immediate background upload; when offline, the outbox keeps the snapshot until the periodic sync or browser `online` event can upload it. The uploaded snapshot payload uses the internal settings transfer format from `src/services/settingsTransfer.ts`, includes a snapshot `syncOrigin` of `pos` or `push` and the persisted settings change metadata, and is stored in Supabase for owner dashboard visibility.
 
-Owner-requested config sync is pull-based from the POS side. The device's periodic sync response can include pending config requests. The POS shows a persistent banner only when an owner push is pending, and the cashier can only accept it. Accepting a request imports the included settings payload locally, clears any current in-memory order sheet, queues a `push` settings snapshot for dashboard audit visibility, then reports progress to the `device-config-sync` Edge Function. Owners create requests through the `owner-config-sync` Edge Function.
+Owner-requested config sync is pull-based from the POS side. The device's periodic sync response can include pending config requests. The POS shows a persistent banner only when an owner push is pending, and the cashier can only accept it. Accepting a request imports the included settings payload locally, clears any current in-memory order sheet, queues a `push` settings snapshot for dashboard audit visibility, then reports progress to the `device-config-sync` Edge Function. Owners create requests through the `owner-config-sync` Edge Function. The owner dashboard Config Sync page is device-centered: each registered device appears as a card with its latest uploaded config snapshot time and POS/PUSH source, plus a pending pill for requested or seen pushes that have not yet been accepted. The dashboard reads config snapshots from `device_config_snapshots` and can fall back to raw `settings.snapshot` sync events when needed. Owners can click Check on a device to load that device's latest snapshot into a Settings Editor that mirrors the POS settings accordion layout and section order. The editor supports shop, device/source summary, categories, items, modifiers, add-ons, adjustments, discounts, VAT, and payment options, can save the edited configuration as a reusable owner config template, and uses Push to Devices to open a modal for selecting one or more target devices.
 
 ## Checkout Architecture
 
