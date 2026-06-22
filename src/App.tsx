@@ -28,6 +28,7 @@ function PosGate() {
   const resetLocalData = usePosStore((state) => state.resetLocalData);
   const registrationStatus = usePosStore((state) => state.deviceRegistration.registrationStatus);
   const syncPendingOutbox = usePosStore((state) => state.syncPendingOutbox);
+  const queueSettingsSnapshotForSync = usePosStore((state) => state.queueSettingsSnapshotForSync);
 
   useEffect(() => {
     void load();
@@ -71,18 +72,31 @@ function PosGate() {
     return <DeviceRegistrationPage />;
   }
 
-  return <RegisteredPos syncPendingOutbox={syncPendingOutbox} />;
+  return <RegisteredPos queueSettingsSnapshotForSync={queueSettingsSnapshotForSync} syncPendingOutbox={syncPendingOutbox} />;
 }
 
-function RegisteredPos({ syncPendingOutbox }: { syncPendingOutbox: () => Promise<void> }) {
+function RegisteredPos({
+  queueSettingsSnapshotForSync,
+  syncPendingOutbox,
+}: {
+  queueSettingsSnapshotForSync: (origin: "pos") => Promise<void>;
+  syncPendingOutbox: () => Promise<void>;
+}) {
   useEffect(() => {
-    void syncPendingOutbox();
+    void queueSettingsSnapshotForSync("pos").then(() => syncPendingOutbox());
     const intervalId = window.setInterval(() => {
       void syncPendingOutbox();
     }, 30_000);
+    function handleOnline() {
+      void syncPendingOutbox();
+    }
 
-    return () => window.clearInterval(intervalId);
-  }, [syncPendingOutbox]);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [queueSettingsSnapshotForSync, syncPendingOutbox]);
 
   return <AppShell />;
 }

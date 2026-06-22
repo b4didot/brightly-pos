@@ -21,7 +21,7 @@ The owner portal uses Supabase Auth when Supabase frontend variables are configu
 
 The owner dashboard is a management surface with Overview, Reports, Devices, Config Sync, Profile, and Subscription sections behind a slide-out navigation drawer. Overview shows synced transaction summaries, a Sales Summary trend, top selling items, payment split, device sales contribution, and device sync health from uploaded POS sync events. The Overview date filter defaults to 14 Days and applies to sales metrics, Sales Summary, Top Selling Items, Payment Split, and Device Sales Contribution with 7 Days, 14 Days, 30 Days, or Custom date ranges. Sales Summary has a separate Net, Gross, or All display filter. Sales trend dates use local POS dates so date-range buckets match report filters. When fewer than five items have sold, Top Selling Items fills the remaining space with unsold regular menu items from uploaded config snapshots. Custom sales trend ranges open in a modal and cannot select future dates. Dashboard data visuals use the system teal and apricot colors for chart objects. Reports can export the same report families as the POS report screen with owner-side filters for date range, device, payment method, order type, and transaction status. Devices keeps the existing add-device token and QR workflow, lists registered devices, shows last transaction sync and last online time, and can disable a device without deleting its historical records.
 
-The Config Sync section shows uploaded POS configuration snapshots and lets the owner request that active devices apply a selected snapshot. POS devices receive requests during background sync and show a persistent non-modal banner with Apply Now and Later actions, so checkout and ticket work can continue while the request is pending. Subscription is a prepared UI page only; billing actions are not connected to a backend yet.
+The Config Sync section shows uploaded POS configuration snapshots and lets the owner request that active devices apply a selected snapshot. POS devices receive requests during background sync and show a persistent non-modal banner with an accept-only action. Accepting the owner push applies the settings immediately and resets any current order sheet before reloading the local register configuration. Subscription is a prepared UI page only; billing actions are not connected to a backend yet.
 
 The first-time setup flow is split between the owner dashboard and the POS PWA. The owner dashboard has an Add Device workflow that generates a single-use token valid for 30 days and shows three activation aids: the token, the PWA setup URL with the token in the `t` query parameter, and a QR code for that same tokenized URL. Activation tokens remain visible in the dashboard because they are single-use and burn after activation. The dashboard instruction is only to open the address on the device and use the token to activate it.
 
@@ -161,7 +161,6 @@ Settings sections currently include:
 
 - Shop.
 - Device & Sync.
-- Settings Backup.
 - Categories.
 - Items.
 - Modifiers.
@@ -173,9 +172,7 @@ Settings sections currently include:
 
 The Shop section controls the shop name shown in the app header plus primary and secondary color customization for the header branding.
 
-The Device & Sync section shows registered owner, shop, device, last sync, and pending sync status.
-
-The Settings Backup section can export and import local configuration as JSON. Settings exports include menu and configuration data, but not transactions or device credentials. Importing settings requires confirmation and does not replace the registered device identity.
+The Device & Sync section shows registered owner, shop, device, last sync, and pending sync status. Settings sync is intentionally hidden from normal POS operation and does not expose manual import or export controls on the device.
 
 Settings currently do not include cashier admin, PIN, role, or permission controls.
 
@@ -232,9 +229,9 @@ Report exports use browser file download behavior.
 
 ## Sync
 
-Checkout, served, and voided transaction changes create local sync outbox entries. In production, pending entries upload to Supabase through the `sync-device-events` Edge Function with the registered device credentials. Without Supabase or a backend API URL, pending entries are locally acknowledged so the outbox flow can be tested during development.
+Checkout, served, and voided transaction changes create local sync outbox entries. When the POS is online, these writes request an immediate silent upload after local persistence succeeds, while the launch, reconnect, and periodic sync loop keep retrying any pending rows. In production, pending entries upload to Supabase through the `sync-device-events` Edge Function with the registered device credentials. Without Supabase or a backend API URL, pending entries are locally acknowledged so the outbox flow can be tested during development.
 
-Settings, menu, payment, VAT, discount, adjustment, and settings import changes also create local `settings.snapshot` sync outbox entries after local persistence succeeds. These snapshots upload silently when online and power the owner dashboard's Config Sync view.
+Settings, menu, payment, VAT, discount, and adjustment changes also stamp local settings change metadata and create local `settings.snapshot` sync outbox entries after local persistence succeeds. Registered devices queue a fresh settings snapshot when the POS launches, and settings changes request immediate upload when online. If the device is offline, the snapshot remains pending until the app launches online, the periodic sync succeeds, or the browser reports connectivity returning. Launch snapshots do not overwrite the actual last settings change time. These snapshots upload silently and power the owner dashboard's Config Sync view, including the last settings change time and whether it came from POS changes or an owner PUSH.
 
 ## Feature Maintenance
 

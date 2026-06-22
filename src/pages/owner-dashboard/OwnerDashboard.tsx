@@ -394,6 +394,7 @@ function ConfigSyncSection({ data, onRefresh, session }: { data: OwnerDashboardD
   const [message, setMessage] = useState("");
   const effectiveSourceSnapshotId = sourceSnapshotId || data.configSnapshots[0]?.id || "";
   const selectedSnapshot = data.configSnapshots.find((snapshot) => snapshot.id === effectiveSourceSnapshotId) ?? data.configSnapshots[0];
+  const lastSettingsChange = data.configSnapshots.find((snapshot) => snapshot.settingsChangedAt) ?? data.configSnapshots[0];
 
   function toggleDevice(deviceId: string) {
     setSelectedDevices((current) => current.includes(deviceId) ? current.filter((id) => id !== deviceId) : [...current, deviceId]);
@@ -425,9 +426,21 @@ function ConfigSyncSection({ data, onRefresh, session }: { data: OwnerDashboardD
       <DashboardPanel title="Config Snapshots" icon={<Settings2 size={19} />}>
         {data.configSnapshots.length === 0 ? <EmptyText>No device config snapshots have uploaded yet.</EmptyText> : (
           <div className="space-y-2">
+            <div className="rounded-lg border border-stone-200 bg-white p-3 text-sm">
+              <p className="text-xs font-bold uppercase tracking-[0.14em] text-stone-500">Last settings change</p>
+              <p className="mt-1 font-bold">
+                {lastSettingsChange?.settingsChangedAt ? formatDateTime(lastSettingsChange.settingsChangedAt) : "Not available"}
+              </p>
+              <p className="text-stone-600">
+                Source: <span className="font-semibold">{lastSettingsChange?.settingsChangeOrigin === "push" ? "PUSH" : "POS"}</span>
+                {lastSettingsChange ? ` / ${lastSettingsChange.deviceName}` : ""}
+              </p>
+            </div>
             <Select label="Source" value={effectiveSourceSnapshotId} onChange={setSourceSnapshotId} options={data.configSnapshots.map((snapshot) => ({ value: snapshot.id, label: `${snapshot.deviceName} / ${formatDateTime(snapshot.uploadedAt)}` }))} />
             <div className="rounded-lg bg-stone-50 p-3 text-sm text-stone-700">
               Source device: <span className="font-bold">{selectedSnapshot?.deviceName}</span><br />
+              Last changed: {selectedSnapshot?.settingsChangedAt ? formatDateTime(selectedSnapshot.settingsChangedAt) : "Not available"}<br />
+              Change source: <span className="font-bold">{selectedSnapshot?.settingsChangeOrigin === "push" ? "PUSH" : "POS"}</span><br />
               Exported: {selectedSnapshot ? formatDateTime(selectedSnapshot.exportedAt) : "Not available"}<br />
               Uploaded: {selectedSnapshot ? formatDateTime(selectedSnapshot.uploadedAt) : "Not available"}
             </div>

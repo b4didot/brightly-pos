@@ -13,7 +13,6 @@ import { createSettingsExport, importSettingsExport } from "../services/settings
 import { updateConfigSyncRequestStatus, uploadSyncOutbox } from "../services/syncClient";
 import { calculateCartTotals } from "../utils/cart";
 import { toDateInputValue } from "../utils/dates";
-import { downloadFile } from "../utils/download";
 import { createId } from "../utils/id";
 import { calculateInclusiveVat, defaultVatSettings } from "../utils/vat";
 import type {
@@ -69,9 +68,9 @@ type PosState = {
   setActiveView: (view: ViewName) => void;
   load: () => Promise<void>;
   registerDevice: (token: string) => Promise<void>;
+  queueSettingsSnapshotForSync: (origin: "pos" | "push") => Promise<void>;
   syncPendingOutbox: () => Promise<void>;
   applyConfigSyncRequest: (requestId: string) => Promise<void>;
-  deferConfigSyncRequest: (requestId: string) => Promise<void>;
   resetLocalData: () => Promise<void>;
   setSelectedCategoryId: (categoryId: string) => void;
   setPendingOrderType: (orderType: OrderType) => void;
@@ -125,8 +124,6 @@ type PosState = {
   setDiscountsEnabled: (enabled: boolean) => Promise<void>;
   updateVatSettings: (settings: Pick<Settings, "vatEnabled" | "vatPercentage">) => Promise<void>;
   updateShopSettings: (settings: Pick<Settings, "shopName" | "primaryColor" | "secondaryColor">) => Promise<void>;
-  exportSettings: () => Promise<void>;
-  importSettings: (file: File) => Promise<void>;
   setReportRange: (startDate: string, endDate: string) => void;
 };
 
@@ -135,6 +132,8 @@ const hexColorPattern = /^#[0-9a-f]{6}$/i;
 const defaultSettings: Settings = {
   id: "main",
   ...defaultShopSettings,
+  settingsUpdatedAt: null,
+  settingsChangeOrigin: null,
   cashEnabled: true,
   cardEnabled: true,
   ...defaultVatSettings,
@@ -302,14 +301,30 @@ function createOutboxEntry(eventType: SyncOutboxEntry["eventType"], recordId: st
   };
 }
 
-async function queueSettingsSnapshot() {
+async function queueSettingsSnapshot(origin: "pos" | "push", markChanged = true) {
   const registration = await db.deviceRegistration.get("main");
   if (registration?.registrationStatus !== "registered") {
     return;
   }
 
-  const payload = await createSettingsExport();
+  if (markChanged) {
+    await db.settings.update("main", {
+      settingsUpdatedAt: new Date().toISOString(),
+      settingsChangeOrigin: origin,
+    });
+  }
+
+  const payload = await createSettingsExport(origin);
   await db.syncOutbox.add(createOutboxEntry("settings.snapshot", registration.deviceId ?? "settings", payload));
+}
+
+let syncInFlight = false;
+let syncQueued = false;
+
+function requestSilentSync(get: () => PosState) {
+  if (navigator.onLine) {
+    void get().syncPendingOutbox();
+  }
 }
 
 export const usePosStore = create<PosState>((set, get) => ({
@@ -382,101 +397,122 @@ export const usePosStore = create<PosState>((set, get) => ({
     await db.deviceRegistration.put(nextRegistration);
     set({ ...(await loadSnapshot()) });
   },
-  syncPendingOutbox: async () => {
-    const registration = await db.deviceRegistration.get("main");
-
-    if (
-      registration?.registrationStatus !== "registered" ||
-      !registration.deviceId ||
-      !registration.credentialId ||
-      !registration.credentialSecret
-    ) {
-      return;
-    }
-
-    if (!navigator.onLine) {
-      await db.syncState.put({ ...defaultSyncState, status: "offline" });
-      set(await loadSnapshot());
-      return;
-    }
-
-    const pendingEntries = await db.syncOutbox.where("status").equals("pending").toArray();
-    if (pendingEntries.length === 0) {
-      try {
-        const acknowledgement = await uploadSyncOutbox(registration, []);
-        await db.deviceRegistration.update("main", { lastSeenAt: new Date().toISOString() });
-        set({ ...(await loadSnapshot()), pendingConfigSyncRequests: acknowledgement.configRequests ?? get().pendingConfigSyncRequests });
-      } catch {
-        await db.syncState.put({
-          id: "main",
-          status: "idle",
-          lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
-          lastFailedSyncAt: null,
-          lastError: null,
-        });
-        set(await loadSnapshot());
-      }
-      return;
-    }
-
-    await db.syncState.put({
-      ...get().syncState,
-      id: "main",
-      status: "syncing",
-      lastError: null,
-    });
+  queueSettingsSnapshotForSync: async (origin) => {
+    await queueSettingsSnapshot(origin, false);
     set(await loadSnapshot());
+  },
+  syncPendingOutbox: async () => {
+    if (syncInFlight) {
+      syncQueued = true;
+      return;
+    }
 
-    let configRequests = get().pendingConfigSyncRequests;
-    try {
-      const acknowledgement = await uploadSyncOutbox(registration, pendingEntries);
-      const acknowledgedIds = new Set(acknowledgement.acknowledgedIds);
-      configRequests = acknowledgement.configRequests ?? configRequests;
-      const syncedAt = new Date().toISOString();
+    async function syncOnce() {
+      const registration = await db.deviceRegistration.get("main");
 
-      await db.transaction("rw", db.syncOutbox, db.syncState, db.deviceRegistration, async () => {
-      await Promise.all(
-        pendingEntries.filter((entry) => acknowledgedIds.has(entry.id)).map((entry) =>
-          db.syncOutbox.update(entry.id, {
-            status: "synced",
-            attempts: entry.attempts + 1,
-            updatedAt: syncedAt,
-            syncedAt,
+      if (
+        registration?.registrationStatus !== "registered" ||
+        !registration.deviceId ||
+        !registration.credentialId ||
+        !registration.credentialSecret
+      ) {
+        return;
+      }
+
+      if (!navigator.onLine) {
+        await db.syncState.put({ ...defaultSyncState, status: "offline" });
+        set(await loadSnapshot());
+        return;
+      }
+
+      const pendingEntries = await db.syncOutbox.where("status").equals("pending").toArray();
+      if (pendingEntries.length === 0) {
+        try {
+          const acknowledgement = await uploadSyncOutbox(registration, []);
+          await db.deviceRegistration.update("main", { lastSeenAt: new Date().toISOString() });
+          set({ ...(await loadSnapshot()), pendingConfigSyncRequests: acknowledgement.configRequests ?? get().pendingConfigSyncRequests });
+        } catch {
+          await db.syncState.put({
+            id: "main",
+            status: "idle",
+            lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
+            lastFailedSyncAt: null,
             lastError: null,
-          }),
-        ),
-      );
+          });
+          set(await loadSnapshot());
+        }
+        return;
+      }
+
       await db.syncState.put({
+        ...get().syncState,
         id: "main",
-        status: "idle",
-        lastSuccessfulSyncAt: syncedAt,
-        lastFailedSyncAt: null,
+        status: "syncing",
         lastError: null,
       });
-      await db.deviceRegistration.update("main", { lastSeenAt: syncedAt });
-      });
-    } catch (syncError) {
-      const failedAt = new Date().toISOString();
-      await db.transaction("rw", db.syncOutbox, db.syncState, async () => {
+      set(await loadSnapshot());
+
+      let configRequests = get().pendingConfigSyncRequests;
+      try {
+        const acknowledgement = await uploadSyncOutbox(registration, pendingEntries);
+        const acknowledgedIds = new Set(acknowledgement.acknowledgedIds);
+        configRequests = acknowledgement.configRequests ?? configRequests;
+        const syncedAt = new Date().toISOString();
+
+        await db.transaction("rw", db.syncOutbox, db.syncState, db.deviceRegistration, async () => {
         await Promise.all(
-          pendingEntries.map((entry) =>
+          pendingEntries.filter((entry) => acknowledgedIds.has(entry.id)).map((entry) =>
             db.syncOutbox.update(entry.id, {
+              status: "synced",
               attempts: entry.attempts + 1,
-              updatedAt: failedAt,
-              lastError: syncError instanceof Error ? syncError.message : "Sync failed.",
+              updatedAt: syncedAt,
+              syncedAt,
+              lastError: null,
             }),
           ),
         );
         await db.syncState.put({
           id: "main",
-          status: "error",
-          lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
-          lastFailedSyncAt: failedAt,
-          lastError: syncError instanceof Error ? syncError.message : "Sync failed.",
+          status: "idle",
+          lastSuccessfulSyncAt: syncedAt,
+          lastFailedSyncAt: null,
+          lastError: null,
         });
-      });
+        await db.deviceRegistration.update("main", { lastSeenAt: syncedAt });
+        });
+      } catch (syncError) {
+        const failedAt = new Date().toISOString();
+        await db.transaction("rw", db.syncOutbox, db.syncState, async () => {
+          await Promise.all(
+            pendingEntries.map((entry) =>
+              db.syncOutbox.update(entry.id, {
+                attempts: entry.attempts + 1,
+                updatedAt: failedAt,
+                lastError: syncError instanceof Error ? syncError.message : "Sync failed.",
+              }),
+            ),
+          );
+          await db.syncState.put({
+            id: "main",
+            status: "error",
+            lastSuccessfulSyncAt: get().syncState.lastSuccessfulSyncAt,
+            lastFailedSyncAt: failedAt,
+            lastError: syncError instanceof Error ? syncError.message : "Sync failed.",
+          });
+        });
+      }
+      set({ ...(await loadSnapshot()), pendingConfigSyncRequests: configRequests });
     }
-    set({ ...(await loadSnapshot()), pendingConfigSyncRequests: configRequests });
+
+    syncInFlight = true;
+    try {
+      do {
+        syncQueued = false;
+        await syncOnce();
+      } while (syncQueued);
+    } finally {
+      syncInFlight = false;
+    }
   },
   applyConfigSyncRequest: async (requestId) => {
     const request = get().pendingConfigSyncRequests.find((entry) => entry.id === requestId);
@@ -486,9 +522,12 @@ export const usePosStore = create<PosState>((set, get) => ({
     try {
       await updateConfigSyncRequestStatus(registration, request.id, "accepted");
       await importSettingsExport(request.settingsPayload);
+      await queueSettingsSnapshot("push");
       await updateConfigSyncRequestStatus(registration, request.id, "applied");
       set({
         ...(await loadSnapshot()),
+        cart: [],
+        cartDiscount: null,
         pendingConfigSyncRequests: get().pendingConfigSyncRequests.filter((entry) => entry.id !== requestId),
       });
     } catch (error) {
@@ -500,17 +539,6 @@ export const usePosStore = create<PosState>((set, get) => ({
       );
       throw error;
     }
-  },
-  deferConfigSyncRequest: async (requestId) => {
-    const request = get().pendingConfigSyncRequests.find((entry) => entry.id === requestId);
-    const registration = await db.deviceRegistration.get("main");
-    if (!request || !registration) return;
-    await updateConfigSyncRequestStatus(registration, request.id, "seen");
-    set({
-      pendingConfigSyncRequests: get().pendingConfigSyncRequests.map((entry) =>
-        entry.id === requestId ? { ...entry, status: "seen", seenAt: new Date().toISOString() } : entry,
-      ),
-    });
   },
   resetLocalData: async () => {
     set({ loading: true, loadError: "" });
@@ -741,6 +769,7 @@ export const usePosStore = create<PosState>((set, get) => ({
 
     const snapshot = await loadSnapshot();
     set({ ...snapshot, cart: [], cartDiscount: null });
+    requestSilentSync(get);
 
     return transaction;
   },
@@ -757,6 +786,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       await db.syncOutbox.add(createOutboxEntry("transaction.served", transactionId, { transactionId, updatedAt }));
     });
     set(await loadSnapshot());
+    requestSilentSync(get);
   },
   voidTransaction: async (transactionId, reason) => {
     const transaction = await db.transactions.get(transactionId);
@@ -779,6 +809,7 @@ export const usePosStore = create<PosState>((set, get) => ({
       );
     });
     set(await loadSnapshot());
+    requestSilentSync(get);
   },
   saveCategory: async ({ id, name, defaultColor }) => {
     const category: Category = {
@@ -789,8 +820,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.categories.put(category);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   deleteCategory: async (categoryId) => {
     await db.transaction("rw", db.categories, db.items, async () => {
@@ -800,8 +832,9 @@ export const usePosStore = create<PosState>((set, get) => ({
         assignedItems.map((item) => db.items.update(item.id, { categoryId: null })),
       );
     });
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set({ ...(await loadSnapshot()), selectedCategoryId: "all" });
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   saveItem: async ({ id, name, price, categoryId }) => {
     const existingItem = id ? await db.items.get(id) : null;
@@ -816,8 +849,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.items.put(item);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   saveAddOnItem: async ({ id, name, price }) => {
     const existingItem = id ? await db.items.get(id) : null;
@@ -832,8 +866,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.items.put(item);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   deleteItem: async (itemId) => {
     await db.items.delete(itemId);
@@ -841,11 +876,12 @@ export const usePosStore = create<PosState>((set, get) => ({
     await db.itemModifiers.where("itemId").equals(itemId).delete();
     await db.itemAddOns.where("itemId").equals(itemId).delete();
     await db.itemAddOns.where("addOnItemId").equals(itemId).delete();
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set({
       ...(await loadSnapshot()),
       cart: get().cart.filter((line) => line.itemId !== itemId),
     });
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   toggleItemOutOfStock: async (itemId) => {
     const item = await db.items.get(itemId);
@@ -855,8 +891,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.items.update(itemId, { isOutOfStock: !item.isOutOfStock });
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   saveItemVariant: async ({ id, itemId, name, price, sortOrder }) => {
     const existingVariant = id ? await db.itemVariants.get(id) : null;
@@ -870,16 +907,18 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.itemVariants.put(variant);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   deleteItemVariant: async (variantId) => {
     await db.itemVariants.delete(variantId);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set({
       ...(await loadSnapshot()),
       cart: get().cart.filter((line) => line.variantId !== variantId),
     });
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   saveModifier: async ({ id, label, options }) => {
     const existingModifier = id ? await db.modifiers.get(id) : null;
@@ -891,14 +930,16 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.modifiers.put(modifier);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   deleteModifier: async (modifierId) => {
     await db.itemModifiers.where("modifierId").equals(modifierId).delete();
     await db.modifiers.delete(modifierId);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   linkModifierToItem: async (itemId, modifierId) => {
     const existing = await db.itemModifiers
@@ -912,8 +953,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.itemModifiers.add({ id: createId("im"), itemId, modifierId });
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   unlinkModifierFromItem: async (itemId, modifierId) => {
     await db.itemModifiers
@@ -921,8 +963,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       .equals(itemId)
       .filter((itemModifier) => itemModifier.modifierId === modifierId)
       .delete();
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   linkAddOnToItem: async (itemId, addOnItemId) => {
     if (itemId === addOnItemId) {
@@ -940,8 +983,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.itemAddOns.add({ id: createId("iao"), itemId, addOnItemId });
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   unlinkAddOnFromItem: async (itemId, addOnItemId) => {
     await db.itemAddOns
@@ -949,8 +993,9 @@ export const usePosStore = create<PosState>((set, get) => ({
       .equals(itemId)
       .filter((itemAddOn) => itemAddOn.addOnItemId === addOnItemId)
       .delete();
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   saveAdjustment: async ({ id, label, type, value, enabled }) => {
     const adjustment: Adjustment = {
@@ -963,13 +1008,15 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.adjustments.put(adjustment);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   deleteAdjustment: async (adjustmentId) => {
     await db.adjustments.delete(adjustmentId);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   saveDiscountTemplate: async ({ id, label, type, value }) => {
     const existingDiscount = id ? await db.discountTemplates.get(id) : null;
@@ -982,17 +1029,19 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.discountTemplates.put(discount);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   deleteDiscountTemplate: async (discountId) => {
     await db.discountTemplates.delete(discountId);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     const cartDiscount = get().cartDiscount;
     set({
       ...(await loadSnapshot()),
       cartDiscount: cartDiscount?.discountId === discountId ? null : cartDiscount,
     });
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   setPaymentMethodEnabled: async (method, enabled) => {
     const settings = get().settings;
@@ -1007,8 +1056,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     }
 
     await db.settings.put(nextSettings);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set({ settings: nextSettings });
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   setDiscountsEnabled: async (enabled) => {
     const settings = get().settings;
@@ -1018,8 +1068,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.settings.put(nextSettings);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set({ settings: nextSettings, cartDiscount: enabled ? get().cartDiscount : null });
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   updateVatSettings: async (vatSettings) => {
     const settings = get().settings;
@@ -1031,8 +1082,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.settings.put(nextSettings);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set({ settings: nextSettings });
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   updateShopSettings: async (shopSettings) => {
     const settings = get().settings;
@@ -1045,22 +1097,9 @@ export const usePosStore = create<PosState>((set, get) => ({
     };
 
     await db.settings.put(nextSettings);
-    await queueSettingsSnapshot();
+    await queueSettingsSnapshot("pos");
     set({ settings: nextSettings });
-  },
-  exportSettings: async () => {
-    const payload = await createSettingsExport();
-    await downloadFile({
-      data: JSON.stringify(payload, null, 2),
-      filename: `brightly-settings-${new Date().toISOString().slice(0, 10)}.json`,
-      mimeType: "application/json",
-    });
-  },
-  importSettings: async (file) => {
-    const payload = JSON.parse(await file.text()) as unknown;
-    await importSettingsExport(payload);
-    await queueSettingsSnapshot();
-    set(await loadSnapshot());
+    if (navigator.onLine) void get().syncPendingOutbox();
   },
   setReportRange: (reportStartDate, reportEndDate) => {
     set({ reportStartDate, reportEndDate });

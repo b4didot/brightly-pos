@@ -19,7 +19,7 @@ brightly-pos-v0
 Current schema version:
 
 ```txt
-15
+16
 ```
 
 ## Tables
@@ -68,6 +68,11 @@ The settings row includes shop display customization:
 - `shopName`
 - `primaryColor`
 - `secondaryColor`
+
+It also stores settings sync audit metadata:
+
+- `settingsUpdatedAt`
+- `settingsChangeOrigin`
 
 `transactions`
 
@@ -127,7 +132,7 @@ syncState.id = "main"
 
 ## Schema Indexes
 
-Current version 15 indexes:
+Current version 16 indexes:
 
 ```ts
 categories: "&id, name"
@@ -222,7 +227,7 @@ Voided transactions are excluded from report totals.
 
 Serving or voiding a transaction creates a sync outbox entry in the same local mutation flow.
 
-Settings, menu, payment option, VAT, discount, adjustment, and settings import changes create `settings.snapshot` outbox entries after local persistence succeeds. Snapshot payloads reuse the settings export format and do not change the local Dexie schema.
+Settings, menu, payment option, VAT, discount, and adjustment changes update the settings singleton's `settingsUpdatedAt` and `settingsChangeOrigin` fields, then create `settings.snapshot` outbox entries after local persistence succeeds. Registered POS launches also queue a fresh settings snapshot so the owner dashboard receives current configuration when a device starts online, but launch snapshots do not rewrite the actual settings change timestamp. Snapshot payloads use the internal settings transfer format and include both snapshot `syncOrigin = "pos"` or `"push"` plus the persisted settings change metadata.
 
 ## Registration And Sync Metadata
 
@@ -256,6 +261,8 @@ New transactions snapshot:
 Existing transactions from schema versions before 14 are backfilled with nullable owner/shop/device/user fields and `updatedAt = createdAt`.
 
 Existing transaction items from schema versions before 15 are best-effort backfilled with category snapshots from the current item/category records. New transaction items snapshot category data at checkout so Sales by Category does not depend on later catalog edits.
+
+Existing settings rows from schema versions before 16 are backfilled with nullable settings sync audit metadata. The fields are stamped the next time a POS-side settings change or accepted owner push changes local configuration.
 
 ## Reset Behavior
 

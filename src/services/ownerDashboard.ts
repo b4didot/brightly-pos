@@ -37,6 +37,9 @@ export type DeviceConfigSnapshot = {
   deviceName: string;
   exportedAt: string;
   uploadedAt: string;
+  syncOrigin: "pos" | "push";
+  settingsChangedAt: string | null;
+  settingsChangeOrigin: "pos" | "push";
   payload: unknown;
 };
 
@@ -149,6 +152,9 @@ export async function loadOwnerDashboardData(session: OwnerSession): Promise<Own
         deviceName: snapshot.device_name,
         exportedAt: snapshot.exported_at,
         uploadedAt: snapshot.uploaded_at,
+        syncOrigin: getSettingsSyncOrigin(snapshot.payload),
+        settingsChangedAt: getSettingsChangedAt(snapshot.payload),
+        settingsChangeOrigin: getSettingsChangeOrigin(snapshot.payload),
         payload: snapshot.payload,
       })),
       configRequests: (requests ?? []).map(mapConfigRequestRow),
@@ -162,6 +168,37 @@ export async function loadOwnerDashboardData(session: OwnerSession): Promise<Own
   }
 
   return loadLocalDashboardData(session);
+}
+
+function getSettingsSyncOrigin(payload: unknown): "pos" | "push" {
+  if (!payload || typeof payload !== "object") {
+    return "pos";
+  }
+
+  const syncOrigin = (payload as { syncOrigin?: unknown }).syncOrigin;
+  return syncOrigin === "push" ? "push" : "pos";
+}
+
+function getSettingsChangedAt(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+
+  const settingsChange = (payload as { settingsChange?: { changedAt?: unknown } }).settingsChange;
+  return typeof settingsChange?.changedAt === "string" ? settingsChange.changedAt : null;
+}
+
+function getSettingsChangeOrigin(payload: unknown): "pos" | "push" {
+  if (!payload || typeof payload !== "object") {
+    return "pos";
+  }
+
+  const settingsChange = (payload as { settingsChange?: { origin?: unknown } }).settingsChange;
+  if (settingsChange?.origin === "push") {
+    return "push";
+  }
+
+  return getSettingsSyncOrigin(payload);
 }
 
 export async function disableOwnerDevice(session: OwnerSession, deviceId: string) {

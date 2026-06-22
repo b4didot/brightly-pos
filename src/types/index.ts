@@ -162,6 +162,8 @@ export type Settings = {
   shopName: string;
   primaryColor: string;
   secondaryColor: string;
+  settingsUpdatedAt: string | null;
+  settingsChangeOrigin: "pos" | "push" | null;
   cashEnabled: boolean;
   cardEnabled: boolean;
   vatEnabled: boolean;

@@ -85,7 +85,7 @@ docs/
 - `src/services/ownerPortal.ts` - owner portal, device token, and device registration service boundary.
 - `src/services/supabaseClient.ts` - browser Supabase client and Edge Function request helper.
 - `src/services/syncClient.ts` - device-authenticated sync upload client with local development fallback.
-- `src/services/settingsTransfer.ts` - settings export/import helpers.
+- `src/services/settingsTransfer.ts` - internal settings snapshot and owner-push apply helpers.
 - `src/types/index.ts` - shared domain types.
 - `src/utils/download.ts` - browser download helper.
 - `vite.config.ts` - Vite, Tailwind, React, and PWA configuration.

@@ -11,9 +11,9 @@ export function AppShell() {
   const activeView = usePosStore((state) => state.activeView);
   const setActiveView = usePosStore((state) => state.setActiveView);
   const settings = usePosStore((state) => state.settings);
+  const cart = usePosStore((state) => state.cart);
   const pendingConfigSyncRequests = usePosStore((state) => state.pendingConfigSyncRequests);
   const applyConfigSyncRequest = usePosStore((state) => state.applyConfigSyncRequest);
-  const deferConfigSyncRequest = usePosStore((state) => state.deferConfigSyncRequest);
   const [syncError, setSyncError] = useState("");
   const [applyingRequestId, setApplyingRequestId] = useState("");
   const pendingRequest = pendingConfigSyncRequests.find((request) => request.status === "requested" || request.status === "seen");
@@ -86,25 +86,20 @@ export function AppShell() {
               </div>
               <div>
                 <p className="font-bold">Owner settings update is ready</p>
-                <p className="text-sm text-stone-700">Apply it now or later. Orders and checkout can continue while this is pending.</p>
+                <p className="text-sm text-stone-700">
+                  Accept to apply the owner update now.{cart.length > 0 ? " The current order sheet will be reset." : ""}
+                </p>
                 {syncError ? <p className="mt-1 text-sm font-semibold text-red-700">{syncError}</p> : null}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:flex">
-              <button
-                type="button"
-                onClick={() => void deferConfigSyncRequest(pendingRequest.id)}
-                className="min-h-11 rounded-lg border border-amber-300 bg-white px-4 text-sm font-bold text-stone-800"
-              >
-                Later
-              </button>
+            <div className="grid gap-2 sm:flex">
               <button
                 type="button"
                 disabled={applyingRequestId === pendingRequest.id}
                 onClick={() => void handleApplyConfigRequest(pendingRequest.id)}
                 className="min-h-11 rounded-lg bg-stone-950 px-4 text-sm font-bold text-white disabled:bg-stone-300"
               >
-                {applyingRequestId === pendingRequest.id ? "Applying..." : "Apply Now"}
+                {applyingRequestId === pendingRequest.id ? "Applying..." : "Accept"}
               </button>
             </div>
           </div>

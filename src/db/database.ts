@@ -315,6 +315,28 @@ class BrightlyDatabase extends Dexie {
         item.categoryNameSnapshot = item.categoryNameSnapshot ?? categorySnapshot?.categoryNameSnapshot ?? "Uncategorized";
       });
     });
+
+    this.version(16).stores({
+      categories: "&id, name",
+      items: "&id, categoryId, name, isOutOfStock, isAddOn",
+      adjustments: "&id, label, enabled",
+      discountTemplates: "&id, label",
+      settings: "&id",
+      transactions: "&id, transactionNumber, createdAt, paymentMethod, ownerId, shopId, deviceId",
+      transactionItems: "&id, transactionId, itemId",
+      itemVariants: "&id, itemId, sortOrder",
+      modifiers: "&id, label",
+      itemModifiers: "&id, itemId, modifierId",
+      itemAddOns: "&id, itemId, addOnItemId",
+      deviceRegistration: "&id, registrationStatus, ownerId, shopId, deviceId",
+      syncOutbox: "&id, eventType, recordId, status, createdAt",
+      syncState: "&id",
+    }).upgrade(async (transaction) => {
+      await transaction.table<Settings, string>("settings").toCollection().modify((settings) => {
+        settings.settingsUpdatedAt = settings.settingsUpdatedAt ?? null;
+        settings.settingsChangeOrigin = settings.settingsChangeOrigin ?? null;
+      });
+    });
   }
 }
 
@@ -359,6 +381,8 @@ export async function ensureDatabaseSeeded() {
       cardEnabled: true,
       ...defaultVatSettings,
       discountEnabled: true,
+      settingsUpdatedAt: null,
+      settingsChangeOrigin: null,
     });
   } else {
     await db.settings.put({
@@ -370,6 +394,8 @@ export async function ensureDatabaseSeeded() {
       vatPercentage: settings.vatPercentage ?? defaultVatSettings.vatPercentage,
       vatInclusive: true,
       discountEnabled: settings.discountEnabled ?? true,
+      settingsUpdatedAt: settings.settingsUpdatedAt ?? null,
+      settingsChangeOrigin: settings.settingsChangeOrigin ?? null,
     });
   }
 

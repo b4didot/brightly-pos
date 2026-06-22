@@ -36,7 +36,7 @@ Checkout must remain local and reliable.
 
 Do not introduce a backend dependency into order entry, checkout, tickets, settings, or reports after registration without updating architecture docs and explaining the tradeoff.
 
-The current app has mandatory device registration, owner portal mock login/register pages, local settings import/export, and sync outbox scaffolding. It has no cashier login, PIN, role, or permission gate.
+The current app has mandatory device registration, owner portal login/register pages, hidden background settings sync, and sync outbox scaffolding. POS users do not have local settings import/export controls. It has no cashier login, PIN, role, or permission gate.
 
 ## State Rules
 

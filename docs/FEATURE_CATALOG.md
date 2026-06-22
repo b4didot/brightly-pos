@@ -64,11 +64,11 @@ The app allows a transaction to be voided after checkout has already been comple
 
 ### Transaction Sync
 
-Transaction sync uploads POS transaction events so they can be viewed in the owner dashboard. Synced events include completed transactions, served status changes, and voided status changes. The POS writes data locally first, then queues sync events so checkout can continue even when connectivity is unreliable.
+Transaction sync uploads POS transaction events so they can be viewed in the owner dashboard. Synced events include completed transactions, served status changes, and voided status changes. The POS writes data locally first, queues sync events, and silently requests an immediate upload when online. If connectivity is unavailable or an upload fails, pending transaction events remain in the local outbox and are retried on launch, reconnect, and the periodic sync loop.
 
 ### Settings Sync
 
-Settings sync uploads POS configuration snapshots and allows owner-requested configuration updates to be applied by POS devices. The owner dashboard can request that selected devices apply a chosen settings snapshot. POS devices receive these requests during background sync and can apply them without blocking checkout work.
+Settings sync uploads POS configuration snapshots behind the scenes and allows owner-requested configuration updates to be applied by POS devices. A registered POS queues a settings snapshot on launch and after local configuration changes, uploads immediately when online, and keeps snapshots pending locally while offline. Launch snapshots sync current state without changing the stored last-change timestamp. The owner dashboard can request that selected devices apply a chosen settings snapshot. POS devices receive these requests during background sync and show an accept-only notification; accepting applies the owner push and clears any current order sheet.
 
 ## POS Reporting Features
 
@@ -258,15 +258,19 @@ Owners can disable a registered POS device without deleting its historical recor
 
 ### Config Snapshots
 
-POS devices upload configuration snapshots that can be viewed in the owner dashboard. These snapshots represent menu and settings data from a device at a specific point in time.
+POS devices upload configuration snapshots that can be viewed in the owner dashboard. These snapshots represent menu and settings data from a device at a specific point in time and include whether the change came from the POS or from an accepted owner PUSH.
 
 ### Push Settings to Devices
 
-Owners can select a configuration snapshot and request selected active devices to apply it. This allows menu and settings changes to be distributed across devices without manually importing settings on each POS device.
+Owners can select a configuration snapshot and request selected active devices to apply it. This allows menu and settings changes to be distributed across devices without manually importing settings on each POS device. POS users cannot choose later; they can only accept the owner push when notified.
 
 ### Config Sync Progress
 
 The dashboard tracks config sync requests and shows their current status. Statuses can include requested, seen, accepted, applied, or failed, depending on where the target device is in the sync process.
+
+### Last Settings Change
+
+The dashboard shows the latest settings change time and whether the source was POS or PUSH. POS indicates a device-side settings or menu change. PUSH indicates a snapshot uploaded after a POS device accepted and applied an owner-requested settings push.
 
 ### Config Sync Error Display
 

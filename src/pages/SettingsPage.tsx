@@ -1,7 +1,6 @@
 import {
   BadgePercent,
   CreditCard,
-  DatabaseBackup,
   FolderOpen,
   Link2,
   ListPlus,
@@ -21,14 +20,12 @@ import { DeviceSyncSection } from "./settings/DeviceSyncSection";
 import { ItemsSection } from "./settings/ItemsSection";
 import { ModifiersSection } from "./settings/ModifiersSection";
 import { PaymentOptionsSection } from "./settings/PaymentOptionsSection";
-import { SettingsTransferSection } from "./settings/SettingsTransferSection";
 import { ShopSection } from "./settings/ShopSection";
 import { VatSection } from "./settings/VatSection";
 
 type ExpandedSections = {
   shop: boolean;
   device: boolean;
-  transfer: boolean;
   categories: boolean;
   items: boolean;
   addOns: boolean;
@@ -43,7 +40,6 @@ export function SettingsPage() {
   const [expandedSections, setExpandedSections] = useState<ExpandedSections>({
     shop: false,
     device: false,
-    transfer: false,
     categories: false,
     items: false,
     addOns: false,
@@ -77,15 +73,6 @@ export function SettingsPage() {
           onToggle={() => toggleSection("device")}
         >
           <DeviceSyncSection />
-        </CollapsibleSection>
-
-        <CollapsibleSection
-          icon={<DatabaseBackup size={21} />}
-          isOpen={expandedSections.transfer}
-          title="Settings Backup"
-          onToggle={() => toggleSection("transfer")}
-        >
-          <SettingsTransferSection />
         </CollapsibleSection>
 
         <CollapsibleSection

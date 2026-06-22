@@ -15,6 +15,11 @@ export type SettingsExportPayload = {
   format: "brightly-settings";
   version: 1;
   exportedAt: string;
+  syncOrigin?: "pos" | "push";
+  settingsChange?: {
+    changedAt: string | null;
+    origin: "pos" | "push" | null;
+  };
   source: {
     ownerId: string | null;
     shopId: string | null;
@@ -33,7 +38,7 @@ export type SettingsExportPayload = {
   };
 };
 
-export async function createSettingsExport(): Promise<SettingsExportPayload> {
+export async function createSettingsExport(syncOrigin: "pos" | "push" = "pos"): Promise<SettingsExportPayload> {
   const [
     settings,
     deviceRegistration,
@@ -66,6 +71,11 @@ export async function createSettingsExport(): Promise<SettingsExportPayload> {
     format: "brightly-settings",
     version: 1,
     exportedAt: new Date().toISOString(),
+    syncOrigin,
+    settingsChange: {
+      changedAt: settings.settingsUpdatedAt,
+      origin: settings.settingsChangeOrigin,
+    },
     source: {
       ownerId: deviceRegistration?.ownerId ?? null,
       shopId: deviceRegistration?.shopId ?? null,
