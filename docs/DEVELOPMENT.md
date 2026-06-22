@@ -27,6 +27,15 @@ When Supabase variables and `VITE_BRIGHTLY_API_URL` are unset, owner auth, devic
 Production and Supabase environment variables are documented in `docs/ENVIRONMENT.md`.
 Supabase schema and Edge Function setup is documented in `docs/SUPABASE.md`.
 
+Pull local frontend environment variables from Vercel:
+
+```sh
+npx vercel env pull .env.local --yes --environment=production
+```
+
+`.env.local` is ignored by git. Use `--environment=development` when Vercel has
+development values configured.
+
 Build the app:
 
 ```sh
@@ -41,64 +50,12 @@ Run lint:
 npm run lint
 ```
 
-Linting excludes generated build output such as `dist` and `android/app/build`.
+Linting excludes generated build output such as `dist`.
 
 Preview a production build:
 
 ```sh
 npm run preview
-```
-
-## Android Commands
-
-Sync web build into Android:
-
-```sh
-npm run android:sync
-```
-
-Open Android Studio:
-
-```sh
-npm run android:open
-```
-
-Build debug APK:
-
-```sh
-npm run android:apk
-```
-
-Debug APK output:
-
-```txt
-android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-On Windows, Android Studio's bundled JDK is usually available at:
-
-```txt
-C:\Program Files\Android\Android Studio\jbr
-```
-
-If Gradle reports that `JAVA_HOME` is not set, configure it with PowerShell:
-
-```powershell
-setx JAVA_HOME "C:\Program Files\Android\Android Studio\jbr"
-```
-
-Close and reopen the terminal, then verify:
-
-```powershell
-java -version
-echo $env:JAVA_HOME
-```
-
-If `java -version` is still not found, add the bundled JDK `bin` folder to the
-user `PATH`, then reopen the terminal again:
-
-```powershell
-setx PATH "$env:PATH;C:\Program Files\Android\Android Studio\jbr\bin"
 ```
 
 ## Project Structure
@@ -115,7 +72,6 @@ src/
   store/
   types/
   utils/
-android/
 docs/
 ```
 
@@ -131,7 +87,7 @@ docs/
 - `src/services/syncClient.ts` - device-authenticated sync upload client with local development fallback.
 - `src/services/settingsTransfer.ts` - settings export/import helpers.
 - `src/types/index.ts` - shared domain types.
-- `src/utils/download.ts` - web/native download abstraction.
+- `src/utils/download.ts` - browser download helper.
 - `vite.config.ts` - Vite, Tailwind, React, and PWA configuration.
 
 ## Development Principles
@@ -202,10 +158,7 @@ Maintain touch-friendly controls because the app targets tablet POS workflows.
 
 Use `downloadFile()` from `src/utils/download.ts` for downloadable files.
 
-This handles both:
-
-- Browser downloads.
-- Android native Downloads folder through Capacitor.
+Downloads use browser blob download behavior.
 
 ## Verification
 
@@ -216,13 +169,6 @@ For general app changes:
 ```sh
 npm run build
 npm run lint
-```
-
-For Android-specific changes:
-
-```sh
-npm run android:sync
-npm run android:apk
 ```
 
 If a check cannot be run, say why in the final response.

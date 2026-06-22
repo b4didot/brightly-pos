@@ -1,6 +1,6 @@
 # Brightly POS
 
-Brightly POS is a local-first point-of-sale application for small food and beverage shops. It runs as a web app during development and can also be packaged as an Android app with Capacitor.
+Brightly POS is a local-first point-of-sale application for small food and beverage shops. It runs as a Vite web app during development and as an installable PWA in production.
 
 This guide explains how to download the project and run it on your computer.
 
@@ -13,35 +13,6 @@ Install these before running the app:
 - npm
 
 Node.js includes npm. If you are unsure which Node.js version to install, use the current LTS version from the official Node.js website.
-
-Optional, only if you want to build the Android app:
-
-- Android Studio
-- Android SDK
-- Java/JDK configured for Android builds
-
-On Windows, Android Studio includes a bundled JDK. If `npm run android:apk`
-fails with `JAVA_HOME is not set`, point `JAVA_HOME` to Android Studio's
-bundled runtime:
-
-```powershell
-setx JAVA_HOME "C:\Program Files\Android\Android Studio\jbr"
-```
-
-Close and reopen the terminal after running `setx`, then verify Java is
-available:
-
-```powershell
-java -version
-echo $env:JAVA_HOME
-```
-
-If `java -version` is still not found, add the bundled JDK `bin` folder to your
-user `PATH`, then reopen the terminal again:
-
-```powershell
-setx PATH "$env:PATH;C:\Program Files\Android\Android Studio\jbr\bin"
-```
 
 ## Download The Project
 
@@ -76,7 +47,6 @@ Start the local development server:
 ```sh
 npm run dev
 ```
-
 After the command runs, the terminal will show a local URL, usually:
 
 ```txt
@@ -104,6 +74,18 @@ The setup URL opens the Brightly POS PWA setup route on the target device.
 Production, Vercel, and Supabase environment variables are documented in
 `docs/ENVIRONMENT.md`.
 Supabase database and Edge Function setup is documented in `docs/SUPABASE.md`.
+
+## Pull Local Environment Variables
+
+The Vercel CLI is installed as a dev dependency. After the project is linked,
+pull Vercel environment variables into the ignored local file:
+
+```sh
+npx vercel env pull .env.local --yes --environment=production
+```
+Use production only when you intentionally want local development to point at
+the production Supabase project. Use `--environment=development` when Vercel has
+development values configured.
 
 ## Build The Web App
 
@@ -134,36 +116,6 @@ and opens in standalone mode without browser UI. The app shell and built assets
 are cached by the service worker so the installed web app can load without
 internet after the first successful visit.
 
-## Android App Setup
-
-The Android project is already included in the `android` folder.
-
-Before using Android commands, make sure Android Studio, the Android SDK, and a working JDK are installed.
-
-To build the web app and sync it into the Android project:
-
-```sh
-npm run android:sync
-```
-
-To open the Android project in Android Studio:
-
-```sh
-npm run android:open
-```
-
-To build a debug APK:
-
-```sh
-npm run android:apk
-```
-
-The debug APK will be created at:
-
-```txt
-android/app/build/outputs/apk/debug/app-debug.apk
-```
-
 ## Useful Commands
 
 ```sh
@@ -172,9 +124,6 @@ npm run dev
 npm run build
 npm run preview
 npm run lint
-npm run android:sync
-npm run android:open
-npm run android:apk
 ```
 
 ## Main Dependencies
@@ -190,13 +139,12 @@ The app uses:
 - Zustand for app state
 - Dexie and IndexedDB for local data storage
 - QRCode for local setup QR generation
-- Capacitor for Android packaging
 - XLSX for report exports
 - lucide-react for icons
 
 ## Local Data
 
-Brightly POS stores app data locally in the browser or Android device using IndexedDB.
+Brightly POS stores app data locally in the browser or installed PWA using IndexedDB.
 
 This means:
 
@@ -218,19 +166,3 @@ If the browser page is already open but not updating, stop the terminal command 
 ```sh
 npm run dev
 ```
-
-If Android commands fail, confirm that Android Studio, the Android SDK, and Java/JDK are installed and configured correctly.
-
-On Windows with Android Studio installed, set `JAVA_HOME` to:
-
-```txt
-C:\Program Files\Android\Android Studio\jbr
-```
-
-If `java` is still not found after reopening the terminal, add:
-
-```txt
-C:\Program Files\Android\Android Studio\jbr\bin
-```
-
-to the user `PATH`.

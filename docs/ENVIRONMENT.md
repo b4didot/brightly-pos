@@ -26,6 +26,15 @@ secret, database, or personal access tokens in Vercel frontend variables.
 Use either `VITE_SUPABASE_ANON_KEY` for legacy projects or
 `VITE_SUPABASE_PUBLISHABLE_KEY` for projects using Supabase's newer key model.
 
+When the project is linked with Vercel CLI, pull local frontend values with:
+
+```sh
+npx vercel env pull .env.local --yes --environment=production
+```
+
+Use `--environment=development` instead when Vercel has development values
+configured. Keep `.env.local` uncommitted.
+
 ## Supabase Edge Functions / Backend
 
 Set these as Supabase function secrets or backend environment variables. They

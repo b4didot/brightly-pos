@@ -14,7 +14,7 @@ Update docs when:
 - A route, view, or workflow changes.
 - A database table, index, migration, or persisted type changes.
 - A store gains or loses ownership of important state.
-- Android behavior changes.
+- PWA packaging or install behavior changes.
 - A coding convention changes.
 
 Use this mapping:
@@ -156,18 +156,15 @@ Examples:
 
 Platform-aware file downloads should go through `src/utils/download.ts`.
 
-## Android Rules
+## PWA Rules
 
-Capacitor config lives in `capacitor.config.ts`.
+Production web builds use `vite-plugin-pwa` for installable app behavior.
 
-Android native code lives in `android/`.
+Report exports use browser file downloads through `src/utils/download.ts`.
 
-The `ReportDownloader` plugin is used for saving files on Android.
+If PWA packaging or download behavior changes, update:
 
-If native download behavior changes, update:
-
-- `src/utils/download.ts`
-- Android plugin code if needed.
+- `src/utils/download.ts` if file download behavior changes.
 - `docs/ARCHITECTURE.md`
 - `docs/FEATURES.md`
 - `docs/DEVELOPMENT.md`

@@ -1,5 +1,3 @@
-import { Capacitor, registerPlugin } from "@capacitor/core";
-
 type ReportFileInput = {
   data: string;
   filename: string;
@@ -7,31 +5,12 @@ type ReportFileInput = {
   encoding?: "base64" | "text";
 };
 
-type ReportDownloaderPlugin = {
-  save(options: { data: string; filename: string; mimeType: string }): Promise<{
-    filename: string;
-    uri: string;
-  }>;
-};
-
-const ReportDownloader = registerPlugin<ReportDownloaderPlugin>("ReportDownloader");
-
 export async function downloadFile({
   data,
   filename,
   mimeType,
   encoding = "text",
 }: ReportFileInput) {
-  if (Capacitor.isNativePlatform()) {
-    await ReportDownloader.save({
-      data: encoding === "base64" ? data : textToBase64(data),
-      filename,
-      mimeType,
-    });
-
-    return;
-  }
-
   const blob =
     encoding === "base64"
       ? base64ToBlob(data, mimeType)
@@ -46,15 +25,6 @@ export async function downloadFile({
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-}
-
-function textToBase64(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return window.btoa(binary);
 }
 
 function base64ToBlob(value: string, mimeType: string) {

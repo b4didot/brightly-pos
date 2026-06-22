@@ -226,11 +226,9 @@ Users can:
 
 Modifiers currently do not add price.
 
-## Android File Downloads
+## File Downloads
 
-On Android, reports are saved through the custom Capacitor `ReportDownloader` plugin.
-
-On web, downloads use browser file download behavior.
+Report exports use browser file download behavior.
 
 ## Sync
 
@@ -246,4 +244,4 @@ Update this document when:
 - A settings section is added or removed.
 - Report export fields change.
 - Checkout behavior changes.
-- Android behavior changes.
+- PWA behavior changes.

@@ -10,7 +10,6 @@ The app runs as:
 
 - A Vite React web app during local development.
 - An installable PWA in production web builds.
-- A Capacitor Android app for device packaging.
 
 The app requires first-time device registration before the POS shell is available. After registration, daily POS operations remain usable even without internet. Core register data is stored locally in IndexedDB through Dexie.
 
@@ -23,7 +22,6 @@ The app requires first-time device registration before the POS shell is availabl
 - Zustand for client-side state.
 - Dexie for IndexedDB persistence.
 - Supabase for production owner authentication, shop/device registry, activation tokens, and cloud sync event storage.
-- Capacitor for Android packaging.
 - XLSX for spreadsheet report exports.
 - lucide-react for icons.
 
@@ -164,23 +162,9 @@ Important behavior:
 
 The app intentionally preserves historical transaction accuracy even if menu items change later.
 
-## Android Architecture
+## Download Architecture
 
-Capacitor config:
-
-- `capacitor.config.ts`
-
-Android project:
-
-- `android/`
-
-Custom Android plugin:
-
-- `android/app/src/main/java/com/brightly/pos/ReportDownloaderPlugin.java`
-
-The custom plugin saves report files into Android Downloads under `Brightly POS`.
-
-Web downloads use browser blob downloads through `src/utils/download.ts`.
+Report exports use browser blob downloads through `src/utils/download.ts`.
 
 ## Code Organization
 
@@ -204,5 +188,5 @@ Update this document when any of these change:
 - New view or major workflow change.
 - New store or major state ownership change.
 - Database version or table change.
-- Android packaging behavior.
+- PWA packaging behavior.
 - Major checkout, reporting, or ticket workflow change.
